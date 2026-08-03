@@ -1,4 +1,4 @@
-# Hermes MCP — Architecture Design Document
+# Mavio-MCP — Architecture Design Document
 
 **Status:** Draft v1.0
 **Owner:** Platform Architecture
@@ -9,29 +9,29 @@
 ## 1. Executive Summary
 
 ### Purpose
-Hermes MCP is an open-source, all-in-one developer toolkit for the **Model Context Protocol (MCP)** ecosystem. It unifies the fragmented tooling around MCP — server generation, registration, routing, inspection, and testing — behind a single project with enterprise-grade authentication, authorization, and multi-workspace support.
+Mavio-MCP is an open-source, all-in-one developer toolkit for the **Model Context Protocol (MCP)** ecosystem. It unifies the fragmented tooling around MCP — server generation, registration, routing, inspection, and testing — behind a single project with enterprise-grade authentication, authorization, and multi-workspace support.
 
 ### Scope
-Hermes MCP delivers:
+Mavio-MCP delivers:
 - **Importers** that turn OpenAPI specs, SQL schemas, GraphQL schemas, and existing MCP servers into first-class MCP servers.
 - A **Registry** that catalogs local and remote MCP servers with health, versioning, and search.
 - A **Router** that exposes many MCP servers behind one authenticated endpoint.
 - A **Playground** and **Inspector** for interactive testing, schema exploration, and debugging.
 - **AuthN/AuthZ** (OAuth2, OIDC, JWT, API keys, sessions) with **RBAC** across workspace / project / server / tool.
 - A **Plugin** system for third-party extensions.
-- A **single declarative configuration** (`hermes.config.yaml`) that drives everything.
+- A **single declarative configuration** (`mavio.config.yaml`) that drives everything.
 
 ### Vision
-> Hermes MCP is to the MCP ecosystem what Kong is to REST and what GraphQL Mesh is to GraphQL — a gateway, registry, and developer workbench in one, purpose-built for MCP.
+> Mavio-MCP is to the MCP ecosystem what Kong is to REST and what GraphQL Mesh is to GraphQL — a gateway, registry, and developer workbench in one, purpose-built for MCP.
 
-### What Hermes MCP is NOT
+### What Mavio-MCP is NOT
 Not an AI platform, LLM framework, agent framework, prompt engineering tool, workflow automation engine (n8n-like), vector store, or memory system. **Only MCP.**
 
 ### Design Philosophy
 1. **Protocol-first.** Everything is a first-class MCP citizen. No proprietary superset.
 2. **Clean architecture.** Domain logic sits at the center; frameworks, transports, and databases are peripheral adapters.
 3. **Composable modules.** Every capability ships as a package with a stable interface. The core knows nothing about specific importers, transports, or auth providers.
-4. **Config-as-truth.** `hermes.config.yaml` is the single source of truth. UI writes to it; runtime reads from it.
+4. **Config-as-truth.** `mavio.config.yaml` is the single source of truth. UI writes to it; runtime reads from it.
 5. **Local-first, cloud-ready.** Runs on a laptop with SQLite fallback; scales horizontally on Kubernetes with Postgres + Redis.
 6. **Batteries included, replaceable.** Ships with sane defaults; every default is swappable via plugin or config.
 
@@ -46,11 +46,11 @@ flowchart TB
     subgraph Clients["Clients"]
         IDE["MCP-aware IDE<br/>(Claude Code, Cursor, VS Code)"]
         Agent["MCP Client Agent"]
-        CLI["hermes CLI"]
+        CLI["mavio CLI"]
         Web["Web Console (Next.js)"]
     end
 
-    subgraph Hermes["Hermes MCP"]
+    subgraph Mavio["Mavio-MCP"]
         API["NestJS API / Gateway"]
         Router["Router"]
         Registry["Registry"]
@@ -65,7 +65,7 @@ flowchart TB
     subgraph Data["State"]
         PG[(PostgreSQL)]
         Redis[(Redis)]
-        FS[("File System<br/>hermes.config.yaml")]
+        FS[("File System<br/>mavio.config.yaml")]
     end
 
     subgraph Servers["MCP Servers"]
@@ -131,13 +131,13 @@ sequenceDiagram
 ```mermaid
 flowchart LR
     subgraph K8s["Kubernetes / Docker Compose"]
-        subgraph Web["hermes-web (Next.js)"]
+        subgraph Web["mavio-web (Next.js)"]
         end
-        subgraph API["hermes-api (NestJS)<br/>stateless, N replicas"]
+        subgraph API["mavio-api (NestJS)<br/>stateless, N replicas"]
         end
-        subgraph RT["hermes-router (NestJS)<br/>stateless, N replicas"]
+        subgraph RT["mavio-router (NestJS)<br/>stateless, N replicas"]
         end
-        subgraph WK["hermes-worker<br/>(importers, health checks)"]
+        subgraph WK["mavio-worker<br/>(importers, health checks)"]
         end
     end
     PG[(PostgreSQL)]
@@ -193,7 +193,7 @@ Every module below lives in its own package, exposes an interface, and has zero 
 ### 3.5 Importer
 - **Purpose:** Turn external artifacts into MCP servers.
 - **Responsibilities:** Parse source → produce `MCPServerBlueprint` → hand to Server Manager for materialization.
-- **Sub-packages:** `@hermes/import-openapi`, `@hermes/import-sql`, `@hermes/import-graphql`, `@hermes/import-mcp` (mirror/proxy an existing MCP server).
+- **Sub-packages:** `@mavio/import-openapi`, `@mavio/import-sql`, `@mavio/import-graphql`, `@mavio/import-mcp` (mirror/proxy an existing MCP server).
 - **Public APIs:** `Importer.plan(input)`, `Importer.apply(plan)`.
 - **Extension Points:** New importers implement `Importer` interface and register via plugin.
 
@@ -224,7 +224,7 @@ Every module below lives in its own package, exposes an interface, and has zero 
 - **Extension Points:** Alternate package registries (private npm, OCI artifacts).
 
 ### 3.10 Configuration Manager
-- **Purpose:** Load, validate, watch, and write `hermes.config.yaml`.
+- **Purpose:** Load, validate, watch, and write `mavio.config.yaml`.
 - **Responsibilities:** Schema validation (Zod), env interpolation, secret refs, hot reload, migration.
 - **Public APIs:** `ConfigService.load`, `save`, `patch`, `watch`, `validate`.
 - **Extension Points:** Config source adapters (file, Consul, K8s ConfigMap).
@@ -255,7 +255,7 @@ Every module below lives in its own package, exposes an interface, and has zero 
 sequenceDiagram
     autonumber
     participant U as User (Web/CLI)
-    participant API as Hermes API
+    participant API as Mavio API
     participant IMP as Importer (openapi)
     participant SM as Server Manager
     participant REG as Registry
@@ -269,7 +269,7 @@ sequenceDiagram
     U->>API: apply(blueprint)
     API->>SM: materialize(blueprint)
     SM->>REG: register(serverDescriptor)
-    SM->>CFG: patch(hermes.config.yaml)
+    SM->>CFG: patch(mavio.config.yaml)
     REG-->>RT: cache invalidate (Redis pub/sub)
     U->>PG: open Playground for tool X
     PG->>RT: tools/call
@@ -314,7 +314,7 @@ sequenceDiagram
     participant PKG as Package Manager
     participant CFG as Config
 
-    U->>API: install @hermes-plugin/import-postgres@1.2.0
+    U->>API: install @mavio-plugin/import-postgres@1.2.0
     API->>PKG: resolve+fetch+verify
     PKG-->>PM: artifact path
     PM->>PM: sandbox load + register hooks
@@ -329,13 +329,13 @@ sequenceDiagram
 Monorepo managed with **pnpm workspaces** + **Turborepo** for task orchestration.
 
 ```
-hermes-mcp/
+mavio-mcp/
 ├── apps/
 │   ├── web/                 # Next.js console (UI)
 │   ├── api/                 # NestJS main API (admin + management)
 │   ├── router/              # NestJS MCP router (data plane)
 │   ├── worker/              # BullMQ workers (imports, health, audit sink)
-│   └── cli/                 # `hermes` CLI (oclif)
+│   └── cli/                 # `mavio` CLI (oclif)
 ├── packages/
 │   ├── core/                # Domain types, interfaces, errors
 │   ├── config/              # Config schema + loader
@@ -361,7 +361,7 @@ hermes-mcp/
 │   ├── vitest-config/
 │   └── docker/              # Dockerfiles, compose, helm
 ├── docs/
-└── hermes.config.yaml       # example
+└── mavio.config.yaml       # example
 ```
 
 **Package responsibility rules:**
@@ -375,21 +375,21 @@ hermes-mcp/
 
 | Package | Depends on | Depended on by | Responsibility |
 |---|---|---|---|
-| `@hermes/core` | — | all | Domain types (`ServerDescriptor`, `ToolDefinition`, `Principal`), errors, result types |
-| `@hermes/config` | core | api, router, worker, cli | Load/validate/watch `hermes.config.yaml` |
-| `@hermes/transport` | core | router, registry, inspector | `Transport` interface + stdio/http/sse impls |
-| `@hermes/registry` | core, transport | api, router, playground, inspector | CRUD + capability cache |
-| `@hermes/router` | core, registry, transport, auth, rbac | apps/router | Multiplexed MCP endpoint |
-| `@hermes/playground` | core, router, registry | apps/api, apps/web | Invoke + history |
-| `@hermes/inspector` | core, registry, transport | apps/api, apps/web | Read-only introspection |
-| `@hermes/auth` | core, config | api, router | Providers |
-| `@hermes/rbac` | core | api, router | Policy + roles |
-| `@hermes/plugin` | core, package-manager, config | api, router | Plugin lifecycle |
-| `@hermes/package-manager` | core | plugin, api | Fetch + verify artifacts |
-| `@hermes/audit` | core | all runtime apps | Structured logs, metrics, traces |
-| `@hermes/sdk` | core | plugin authors | Public API for plugins |
-| `@hermes/ui-kit` | — | apps/web | shadcn primitives + tokens |
-| `@hermes/import-*` | core, transport | api, cli | Importers implementing `Importer` |
+| `@mavio/core` | — | all | Domain types (`ServerDescriptor`, `ToolDefinition`, `Principal`), errors, result types |
+| `@mavio/config` | core | api, router, worker, cli | Load/validate/watch `mavio.config.yaml` |
+| `@mavio/transport` | core | router, registry, inspector | `Transport` interface + stdio/http/sse impls |
+| `@mavio/registry` | core, transport | api, router, playground, inspector | CRUD + capability cache |
+| `@mavio/router` | core, registry, transport, auth, rbac | apps/router | Multiplexed MCP endpoint |
+| `@mavio/playground` | core, router, registry | apps/api, apps/web | Invoke + history |
+| `@mavio/inspector` | core, registry, transport | apps/api, apps/web | Read-only introspection |
+| `@mavio/auth` | core, config | api, router | Providers |
+| `@mavio/rbac` | core | api, router | Policy + roles |
+| `@mavio/plugin` | core, package-manager, config | api, router | Plugin lifecycle |
+| `@mavio/package-manager` | core | plugin, api | Fetch + verify artifacts |
+| `@mavio/audit` | core | all runtime apps | Structured logs, metrics, traces |
+| `@mavio/sdk` | core | plugin authors | Public API for plugins |
+| `@mavio/ui-kit` | — | apps/web | shadcn primitives + tokens |
+| `@mavio/import-*` | core, transport | api, cli | Importers implementing `Importer` |
 
 ---
 
@@ -473,20 +473,20 @@ erDiagram
 
 ## 9. Configuration
 
-`hermes.config.yaml` is the **single declarative source of truth**. UI edits produce diffs against this file; runtime hot-reloads on change.
+`mavio.config.yaml` is the **single declarative source of truth**. UI edits produce diffs against this file; runtime hot-reloads on change.
 
 ```yaml
 version: 1
 
-hermes:
+mavio:
   publicUrl: https://mcp.example.com
-  dataDir: ./.hermes
+  dataDir: ./.mavio
 
 database:
-  url: ${HERMES_DB_URL}          # postgres://... ; sqlite fallback for dev
+  url: ${MAVIO_DB_URL}          # postgres://... ; sqlite fallback for dev
 
 cache:
-  url: ${HERMES_REDIS_URL}
+  url: ${MAVIO_REDIS_URL}
 
 auth:
   providers:
@@ -547,7 +547,7 @@ router:
   cors: { origins: ["https://console.example.com"] }
 
 plugins:
-  - name: "@hermes-plugin/import-postgres"
+  - name: "@mavio-plugin/import-postgres"
     version: "^1.0.0"
     enabled: true
 
@@ -555,7 +555,7 @@ secrets:
   provider: env         # env | file | vault | aws-sm | gcp-sm
 ```
 
-Every field validated with a Zod schema shipped in `@hermes/config`. `secret://` refs resolved lazily via `SecretProvider`.
+Every field validated with a Zod schema shipped in `@mavio/config`. `secret://` refs resolved lazily via `SecretProvider`.
 
 ---
 
@@ -585,15 +585,15 @@ stateDiagram-v2
 ```
 
 ### 10.3 Discovery
-1. `hermes plugin search <query>` → queries the configured plugin registry (default: npm scope `@hermes-plugin/*`).
-2. Local discovery scans `node_modules` for packages exporting `hermesPlugin` manifest.
+1. `mavio plugin search <query>` → queries the configured plugin registry (default: npm scope `@mavio-plugin/*`).
+2. Local discovery scans `node_modules` for packages exporting `mavioPlugin` manifest.
 
 ### 10.4 Manifest
 ```ts
-export const hermesPlugin: PluginManifest = {
-  name: "@hermes-plugin/import-postgres",
+export const mavioPlugin: PluginManifest = {
+  name: "@mavio-plugin/import-postgres",
   version: "1.2.0",
-  hermesApi: "^1.0.0",
+  mavioApi: "^1.0.0",
   contributes: {
     importers: ["postgres"],
     permissions: ["read:config", "write:registry"]
@@ -608,7 +608,7 @@ export const hermesPlugin: PluginManifest = {
 - Signed packages (Sigstore) verified before load.
 
 ### 10.6 Versioning
-- Semantic version. `hermesApi` field pins compatible core API range. Core validates on load.
+- Semantic version. `mavioApi` field pins compatible core API range. Core validates on load.
 
 ---
 
@@ -676,7 +676,7 @@ erDiagram
 ```
 
 ### 12.2 Behaviors
-- **Discovery:** local (`hermes.config.yaml` + plugin scan) and remote (public registries, if configured).
+- **Discovery:** local (`mavio.config.yaml` + plugin scan) and remote (public registries, if configured).
 - **Registration:** validates transport descriptor + performs a first-contact capability snapshot.
 - **Health:** background probe every N seconds; results cached in Redis; SSE stream to UI.
 - **Versioning:** each capability snapshot is immutable and version-tagged; diffs computed by Inspector.
@@ -700,7 +700,7 @@ Resolution order for `tools/call name=X`:
 
 ### 13.3 Auth Forwarding
 Two modes per server (config):
-- **Pass-through:** propagate caller's bearer / add signed header (`X-Hermes-Principal`).
+- **Pass-through:** propagate caller's bearer / add signed header (`X-Mavio-Principal`).
 - **Broker:** router replaces caller creds with server-specific secret from `secret://`.
 
 ### 13.4 Session Multiplexing
@@ -786,7 +786,7 @@ Every extension point is an **interface + registration hook**. Core code depends
 | Routing strategy | `RoutingStrategy` | `ctx.router.registerStrategy(impl)` |
 | UI extension | React component + manifest | Plugin `contributes.ui[]` |
 
-Adding a new capability never requires modifying `@hermes/core` or any `apps/*` composition root beyond a version bump of the plugin registry.
+Adding a new capability never requires modifying `@mavio/core` or any `apps/*` composition root beyond a version bump of the plugin registry.
 
 ---
 
@@ -794,12 +794,12 @@ Adding a new capability never requires modifying `@hermes/core` or any `apps/*` 
 
 ### Phase 1 — MVP (0.1)
 - Monorepo scaffold, CI, Docker Compose (Postgres + Redis).
-- `@hermes/core`, `@hermes/config`, `@hermes/transport` (stdio + http).
+- `@mavio/core`, `@mavio/config`, `@mavio/transport` (stdio + http).
 - Registry (Postgres) with basic CRUD and health.
 - Router with single-endpoint MCP, namespaced tool routing, API-key auth.
 - Web console: server list, register form, minimal Inspector, minimal Playground.
 - Importer: OpenAPI.
-- CLI: `hermes init`, `hermes import openapi`, `hermes serve`.
+- CLI: `mavio init`, `mavio import openapi`, `mavio serve`.
 
 ### Phase 2 — Enterprise Foundation (0.2–0.3)
 - OIDC + OAuth2 providers, session cookies for console.
@@ -811,7 +811,7 @@ Adding a new capability never requires modifying `@hermes/core` or any `apps/*` 
 - Audit logs.
 
 ### Phase 3 — Ecosystem (0.4–0.6)
-- Plugin manager + `@hermes/sdk` v1.
+- Plugin manager + `@mavio/sdk` v1.
 - GraphQL importer.
 - MCP-mirror importer (register + proxy existing MCP servers).
 - Rate limiting, circuit breakers, per-server broker auth.
@@ -864,7 +864,7 @@ Adding a new capability never requires modifying `@hermes/core` or any `apps/*` 
 - **Reasons:** Enables plugin ecosystem, isolated tests, replaceable backends without touching business rules.
 
 ### ADR-007 — YAML config as single source of truth
-- **Decision:** `hermes.config.yaml` is authoritative; UI edits it via API; runtime watches it.
+- **Decision:** `mavio.config.yaml` is authoritative; UI edits it via API; runtime watches it.
 - **Alternatives:** DB-first with export; env-only.
 - **Tradeoffs:** File conflicts under multi-writer scenarios (mitigated by API-serialized writes + optimistic locking).
 - **Reasons:** GitOps-friendly, reproducible environments, portable across dev/staging/prod.

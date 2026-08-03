@@ -29,10 +29,10 @@ Standard formats mean users bring their own backend; we don't gatekeep observabi
 
 ## Consequences
 - Every request carries a trace id; audit records reference the same id for correlation.
-- Metric naming follows Prometheus conventions (`hermes_router_requests_total`, `_seconds`, `_bytes`).
+- Metric naming follows Prometheus conventions (`mavio_router_requests_total`, `_seconds`, `_bytes`).
 - Revisit only if OpenTelemetry semantic conventions materially change (adopt new versions on major releases).
 
 ## Action Items
-- [ ] Metric catalog documented in `@hermes/audit`.
+- [ ] Metric catalog documented in `@mavio/audit`.
 - [ ] Reference Grafana dashboards shipped in `tooling/docker`.
 - [ ] Trace id propagation contract for plugins.

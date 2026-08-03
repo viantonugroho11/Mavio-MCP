@@ -5,7 +5,7 @@
 **Deciders:** Platform Architecture
 
 ## Context
-Hermes stores workspaces, projects, servers, users/roles, capability snapshots, audit logs, and plugin metadata. Access patterns are relational with occasional JSON payloads (capability snapshots) and full-text search (server discovery). We need strong consistency for RBAC and auditability.
+Mavio stores workspaces, projects, servers, users/roles, capability snapshots, audit logs, and plugin metadata. Access patterns are relational with occasional JSON payloads (capability snapshots) and full-text search (server discovery). We need strong consistency for RBAC and auditability.
 
 ## Decision
 Use **PostgreSQL 15+** as the primary datastore for all persistent state. Ship **SQLite** as a dev-only fallback for local zero-dependency runs.

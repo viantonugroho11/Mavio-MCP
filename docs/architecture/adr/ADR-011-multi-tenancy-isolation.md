@@ -25,7 +25,7 @@ Use **row-level isolation** with a mandatory `workspace_id` on every tenant-scop
 
 ### Option C: Database-per-tenant
 **Pros:** Hardest isolation.
-**Cons:** Ops nightmare for OSS users; overkill for typical Hermes deployments.
+**Cons:** Ops nightmare for OSS users; overkill for typical Mavio deployments.
 
 ## Trade-off Analysis
 RLS enforced at the DB level catches app-layer bugs (missing filters) — this is the decisive win. Enterprise customers who need harder isolation can be offered dedicated-schema mode later without breaking the app layer.

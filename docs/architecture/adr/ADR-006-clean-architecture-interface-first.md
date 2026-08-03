@@ -5,10 +5,10 @@
 **Deciders:** Platform Architecture
 
 ## Context
-Hermes must support a plugin ecosystem where third parties add importers, transports, auth providers, and registry backends without forking core. Domain logic must be testable without HTTP or DB.
+Mavio must support a plugin ecosystem where third parties add importers, transports, auth providers, and registry backends without forking core. Domain logic must be testable without HTTP or DB.
 
 ## Decision
-Adopt **clean architecture**: domain types and interfaces live in `@hermes/core`; every capability is a package that depends on interfaces from core; adapters (HTTP, DB, MCP transports) implement interfaces; `apps/*` are thin composition roots that wire adapters to services.
+Adopt **clean architecture**: domain types and interfaces live in `@mavio/core`; every capability is a package that depends on interfaces from core; adapters (HTTP, DB, MCP transports) implement interfaces; `apps/*` are thin composition roots that wire adapters to services.
 
 ## Options Considered
 
@@ -35,4 +35,4 @@ The plugin ecosystem is a first-class product requirement; that alone forces the
 
 ## Action Items
 - [ ] ESLint rule set for cross-package import restrictions.
-- [ ] Contract-test scaffolding shipped in `@hermes/sdk`.
+- [ ] Contract-test scaffolding shipped in `@mavio/sdk`.

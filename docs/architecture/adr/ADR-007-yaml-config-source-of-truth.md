@@ -8,7 +8,7 @@
 Config lives in many places in similar tools (UI-only, DB-only, env, YAML). This makes reproducing environments hard, blocks GitOps, and turns UI edits into invisible state.
 
 ## Decision
-`hermes.config.yaml` is the **authoritative source of truth**. The web console writes changes back to it via a serialized API. Runtime watches the file and hot-reloads. Secrets are references (`secret://...`) resolved by a `SecretProvider`.
+`mavio.config.yaml` is the **authoritative source of truth**. The web console writes changes back to it via a serialized API. Runtime watches the file and hot-reloads. Secrets are references (`secret://...`) resolved by a `SecretProvider`.
 
 ## Options Considered
 
@@ -36,4 +36,4 @@ Multi-writer risk is real but bounded — the API is the only writer, guarded by
 ## Action Items
 - [ ] Optimistic-lock implementation with content hash.
 - [ ] Hot-reload safety spec per module.
-- [ ] `hermes config validate|diff|apply` CLI commands.
+- [ ] `mavio config validate|diff|apply` CLI commands.

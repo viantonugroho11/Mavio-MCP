@@ -35,5 +35,5 @@ Blast radius mitigated by (a) horizontally scaling stateless router replicas, (b
 
 ## Action Items
 - [ ] Namespacing spec doc.
-- [ ] Collision detection in `hermes.config.yaml` validator.
+- [ ] Collision detection in `mavio.config.yaml` validator.
 - [ ] Per-server circuit breaker + audit ID propagation.

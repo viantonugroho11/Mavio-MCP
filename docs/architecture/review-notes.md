@@ -1,8 +1,8 @@
-# Architecture Review Notes — Hermes MCP v1.0 Draft
+# Architecture Review Notes — Mavio-MCP v1.0 Draft
 
 **Reviewer:** Principal Architecture
 **Date:** 2026-08-03
-**Target:** [`hermes-mcp-architecture.md`](hermes-mcp-architecture.md)
+**Target:** [`mavio-mcp-architecture.md`](mavio-mcp-architecture.md)
 
 ## Overall Verdict
 **Accept with follow-ups.** The core is coherent, modular, and implementable. Four gaps are worth closing before Phase 1 kickoff; another six are worth acknowledging on the roadmap.

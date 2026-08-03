@@ -5,7 +5,7 @@
 **Deciders:** Platform Architecture, Backend Lead
 
 ## Context
-Hermes MCP ships three backend apps (`api`, `router`, `worker`) and many packages. We need a framework that enforces modularity, supports first-class DI (for interface-first clean architecture), integrates well with TypeScript, and has mature testing/interceptor primitives for cross-cutting concerns like auth, RBAC, audit, and rate limiting.
+Mavio-MCP ships three backend apps (`api`, `router`, `worker`) and many packages. We need a framework that enforces modularity, supports first-class DI (for interface-first clean architecture), integrates well with TypeScript, and has mature testing/interceptor primitives for cross-cutting concerns like auth, RBAC, audit, and rate limiting.
 
 ## Decision
 Use **NestJS** as the framework for all backend apps.

@@ -32,7 +32,7 @@ Use **Redis 7+** for capability cache, session state, rate-limit counters, pub/s
 Redis-compatible protocol keeps the door open to Dragonfly/KeyDB if throughput becomes an issue, without app code changes.
 
 ## Consequences
-- All Redis usage must be namespaced (`hermes:<workspace>:...`) and TTL'd.
+- All Redis usage must be namespaced (`mavio:<workspace>:...`) and TTL'd.
 - Router must degrade gracefully if Redis is briefly unavailable (fail-open reads with backoff, fail-closed writes).
 - Revisit if Redis memory > 30% of budget or p99 latency > 5ms sustained.
 

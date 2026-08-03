@@ -1,10 +1,10 @@
-# Hermes MCP
+# Mavio-MCP
 
 > All-in-one developer toolkit for the **Model Context Protocol (MCP)** ecosystem — registry, router, playground, inspector, importers, and enterprise auth.
 >
-> Hermes MCP is **not** an AI platform, agent framework, LLM orchestrator, or workflow engine. **Only MCP.**
+> Mavio-MCP is **not** an AI platform, agent framework, LLM orchestrator, or workflow engine. **Only MCP.**
 
-Repository name: `Mavio-MCP` (product name: **Hermes MCP**).
+Repository name: `Mavio-MCP` (product name: **Mavio-MCP**).
 
 ---
 
@@ -18,7 +18,7 @@ Repository name: `Mavio-MCP` (product name: **Hermes MCP**).
 - **Auth** — OAuth2, OIDC, JWT, API keys, sessions.
 - **RBAC** — four scopes: workspace · project · server · tool.
 - **Plugins** — sandboxed extensions for importers, transports, auth providers, UI, and middleware.
-- **Config-as-truth** — `hermes.config.yaml` is authoritative; the web console writes back to it.
+- **Config-as-truth** — `mavio.config.yaml` is authoritative; the web console writes back to it.
 
 ## Status
 
@@ -44,7 +44,7 @@ apps/
   api/       # NestJS admin/management API
   router/    # NestJS MCP data-plane router
   worker/    # Background jobs (imports, health)
-  cli/       # `hermes` CLI (oclif)
+  cli/       # `mavio` CLI (oclif)
 packages/
   core/  config/  registry/  router/  playground/  inspector/
   transport/  auth/  rbac/  plugin/  package-manager/  audit/
@@ -55,7 +55,7 @@ docs/        # architecture + ADRs
 
 ## Documentation
 
-- [Architecture Design Document](docs/architecture/hermes-mcp-architecture.md) — full v1.0 draft (20 sections, Mermaid diagrams).
+- [Architecture Design Document](docs/architecture/mavio-mcp-architecture.md) — full v1.0 draft (20 sections, Mermaid diagrams).
 - [Architecture Decision Records](docs/architecture/adr/README.md) — 14 ADRs (10 accepted, 4 proposed).
 - [Review Notes](docs/architecture/review-notes.md) — gap analysis + non-functional targets.
 - [Architecture Overview (visual)](https://claude.ai/code/artifact/eadf4ccf-2f95-449a-801d-50f41fc4657d) — one-page summary.
@@ -83,10 +83,10 @@ pnpm install
 docker compose up -d
 
 # initialize a project
-pnpm hermes init
+pnpm mavio init
 
 # import an OpenAPI spec into an MCP server
-pnpm hermes import openapi https://api.example.com/openapi.json
+pnpm mavio import openapi https://api.example.com/openapi.json
 
 # run the router + web console
 pnpm dev

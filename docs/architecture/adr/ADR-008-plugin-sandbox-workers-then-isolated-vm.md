@@ -41,4 +41,4 @@ Start with the pragmatic option that gets a plugin ecosystem shipping, plus sign
 ## Action Items
 - [ ] Manifest schema with `contributes` and `permissions` fields.
 - [ ] Install-time consent flow.
-- [ ] Sigstore verification in `@hermes/package-manager`.
+- [ ] Sigstore verification in `@mavio/package-manager`.

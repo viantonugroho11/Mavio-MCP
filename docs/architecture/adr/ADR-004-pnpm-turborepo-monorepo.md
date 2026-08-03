@@ -5,7 +5,7 @@
 **Deciders:** Platform Architecture, DX Lead
 
 ## Context
-Hermes has 3 apps and 15+ packages that must build, test, and version together. We need fast installs, strict dep isolation (packages shouldn't accidentally import unlisted deps), and a cacheable task graph.
+Mavio has 3 apps and 15+ packages that must build, test, and version together. We need fast installs, strict dep isolation (packages shouldn't accidentally import unlisted deps), and a cacheable task graph.
 
 ## Decision
 Use **pnpm workspaces** for dependency management and **Turborepo** for task orchestration.

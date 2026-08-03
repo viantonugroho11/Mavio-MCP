@@ -1,4 +1,4 @@
-# Architecture Decision Records — Hermes MCP
+# Architecture Decision Records — Mavio-MCP
 
 Every non-trivial architectural decision lives here as an immutable, numbered record. New decisions get a new ADR; changes supersede rather than edit.
 

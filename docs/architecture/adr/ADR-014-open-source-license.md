@@ -8,7 +8,7 @@
 License choice shapes contributor pool, downstream adoption, and any future commercial strategy. Doing this wrong or late is expensive.
 
 ## Decision (proposed)
-License Hermes MCP under **Apache License 2.0**. Keep the door open for **BSL/Enterprise Edition** features (advanced SSO, audit sinks, SLA) under a separate, clearly-marked directory — but ship v1.0 as pure Apache 2.0.
+License Mavio-MCP under **Apache License 2.0**. Keep the door open for **BSL/Enterprise Edition** features (advanced SSO, audit sinks, SLA) under a separate, clearly-marked directory — but ship v1.0 as pure Apache 2.0.
 
 ## Options Considered
 

@@ -11,7 +11,7 @@ The base architecture defines a `SecretProvider` interface but doesn't specify r
 Every secret has:
 1. **Versioned reference:** `secret://acme/orders-token@v3` optional; unversioned refs resolve to `@latest`.
 2. **TTL-bounded cache:** `SecretProvider` caches for at most 60s.
-3. **Push invalidation:** providers that support push (Vault, AWS SM) publish to Redis channel `hermes:secrets:invalidate`; router and workers drop the cached value.
+3. **Push invalidation:** providers that support push (Vault, AWS SM) publish to Redis channel `mavio:secrets:invalidate`; router and workers drop the cached value.
 4. **Explicit rotation API:** `POST /admin/secrets/:ref/rotate` — creates new version, updates references, keeps old version accessible for grace window (default 10 minutes) to bleed off in-flight requests.
 5. **Revocation:** immediate cache purge + connection reset for affected server sessions.
 
