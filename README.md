@@ -22,7 +22,7 @@ Repository name: `Mavio-MCP` (product name: **Mavio-MCP**).
 
 ## Status
 
-Pre-implementation. Architecture design v1.0 (draft) is complete; MVP scaffold pending.
+**MVP scaffold landed (v0.1.0-mvp).** Runs: monorepo, Postgres/Redis via Docker Compose, unified NestJS server (router + admin API), OpenAPI importer, `mavio` CLI. Web console defers to Phase 1.5.
 
 ## Tech stack
 
@@ -71,26 +71,42 @@ docs/        # architecture + ADRs
 
 ## Getting started
 
-> MVP scaffold not yet published. This section will land with Phase 1.
-
-Planned quick start:
+Requires Node 20.11+, pnpm 9, Docker.
 
 ```bash
-# install
+# 1. install deps + build
 pnpm install
+pnpm build
 
-# spin up Postgres + Redis
+# 2. spin up Postgres + Redis
 docker compose up -d
 
-# initialize a project
-pnpm mavio init
+# 3. env
+cp .env.example .env
+export $(grep -v "^#" .env | xargs)
 
-# import an OpenAPI spec into an MCP server
-pnpm mavio import openapi https://api.example.com/openapi.json
+# 4. apply DB migrations
+pnpm --filter @mavio/registry migrate
 
-# run the router + web console
-pnpm dev
+# 5. seed a config (uses the Petstore OpenAPI example)
+cp mavio.config.example.yaml mavio.config.yaml
+
+# 6. start the server (router on POST /mcp, admin on /api/*)
+pnpm --filter @mavio/server start
+
+# 7. from another shell — inspect / import / test
+node apps/cli/dist/index.js servers list
+node apps/cli/dist/index.js import openapi \
+  --id petstore \
+  --url https://petstore3.swagger.io/api/v3/openapi.json
+
+# 8. call the router as an MCP client
+curl -X POST http://localhost:4000/mcp \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
+
+Set `MAVIO_ADMIN_API_KEY` to require a bearer token on `/api/*` (dev default: open).
 
 ## Contributing
 
