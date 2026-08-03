@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Inject, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { Actions } from "@mavio/rbac";
 import { RbacRepository } from "@mavio/registry";
 import { RBAC_REPO } from "./rbac.module.js";
@@ -48,6 +48,12 @@ export class RbacController {
   @RequirePermission(Actions.WorkspaceAdmin)
   listRoles(): Promise<unknown> {
     return this.repo.listRoles();
+  }
+
+  @Get("assignments")
+  @RequirePermission(Actions.WorkspaceAdmin)
+  listAssignments(@Query("principalId") principalId?: string): Promise<unknown> {
+    return this.repo.listAssignments(principalId);
   }
 
   @Post("assignments")

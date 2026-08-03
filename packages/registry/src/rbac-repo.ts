@@ -84,6 +84,33 @@ export class RbacRepository implements RoleProvider {
     return this.toPrincipal(row);
   }
 
+  async ensurePrincipal(input: {
+    id: string;
+    type: "user" | "service";
+    displayName: string;
+    workspaceId: string;
+  }): Promise<{ created: boolean; principal: Principal }> {
+    const row = await this.db
+      .insertInto("principals")
+      .values({
+        id: input.id,
+        type: input.type,
+        display_name: input.displayName,
+        workspace_id: input.workspaceId,
+        api_key_hash: null,
+      })
+      .onConflict((oc) => oc.column("id").doNothing())
+      .returningAll()
+      .executeTakeFirst();
+    if (row) return { created: true, principal: this.toPrincipal(row) };
+    const existing = await this.db
+      .selectFrom("principals")
+      .selectAll()
+      .where("id", "=", input.id)
+      .executeTakeFirstOrThrow();
+    return { created: false, principal: this.toPrincipal(existing) };
+  }
+
   async listPrincipals(): Promise<Principal[]> {
     const rows = await this.db.selectFrom("principals").selectAll().execute();
     return rows.map((r) => this.toPrincipal(r));
@@ -128,6 +155,23 @@ export class RbacRepository implements RoleProvider {
 
   async unassign(id: string): Promise<void> {
     await this.db.deleteFrom("role_assignments").where("id", "=", id).execute();
+  }
+
+  async listAssignments(principalId?: string): Promise<Array<RoleAssignment & { id: string }>> {
+    let query = this.db.selectFrom("role_assignments").selectAll();
+    if (principalId) query = query.where("principal_id", "=", principalId);
+    const rows = await query.execute();
+    return rows.map((r) => ({
+      id: r.id,
+      principalId: r.principal_id,
+      roleName: r.role_name,
+      scope: {
+        workspace: r.workspace_id ?? undefined,
+        project: r.project_id ?? undefined,
+        server: r.server_id ?? undefined,
+        tool: r.tool_name ?? undefined,
+      },
+    }));
   }
 
   async assignmentsFor(principalId: string): Promise<RoleAssignment[]> {
