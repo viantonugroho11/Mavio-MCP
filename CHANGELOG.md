@@ -4,6 +4,52 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Added — Inspector schema explorer (Phase 2)
+- `SchemaTree` component (apps/web/src/components/schema-tree.tsx) — renders JSON Schema properties as a tree with type, required marker, format, enum, description, and nested object/array.
+- `ToolExplorer` (client component) — search filter by tool name/description + raw JSON toggle. Auto-expands schemas when filtered ≤ 5.
+- `/servers/:id` page now embeds `ToolExplorer`; snapshot diff remains at `/servers/:id/history` — Phase 2 "full Inspector" complete.
+
+### Added — SSE transport (Phase 2)
+- **Upstream**: `sse` `TransportDescriptor` kind in `@mavio/core`. `SseTransport` in `@mavio/transport` — classic MCP HTTP+SSE client: GET `text/event-stream`, awaits `event: endpoint`, POSTs frames to endpoint, correlates responses by frame.id. `TransportManager` registers it.
+- **Downstream**: `GET /mcp/sse` (SseController) — emits `event: endpoint` = `/mcp`, then pushes `notifications/tools/list_changed` frames whenever `InvalidationBus` fires. Keep-alive every 15s. Unsubscribe on client disconnect.
+- Per-call streaming responses (correlated by frame.id on same SSE stream) TODO — needs response fanout in `RouterService`.
+
+### Added — OIDC default role auto-assign (Phase 2 sub-step 2c)
+- `RbacRepository.ensurePrincipal({...})` — insert-if-new via `ON CONFLICT DO NOTHING`, returns `{ created, principal }`.
+- `LoginController.callback` uses `ensurePrincipal`; when `created && MAVIO_OIDC_DEFAULT_ROLE` set, assigns that role at workspace scope. First-login users no longer land role-less. Assign failure is warned, not fatal.
+
+### Added — Web login UI + auth-aware nav (Phase 2)
+- `/login` page (apps/web/src/app/login/page.tsx) — server-fetches enabled providers and renders one link per provider (`${API_URL}${loginUrl}?return_to=…`).
+- `Nav` converted to client component — calls `GET /auth/me` on mount, shows displayName + Sign out button when session present, Sign in link otherwise.
+- `lib/api.ts` adds `listAuthProviders`, `fetchMe`, `logout` (all use `credentials: "include"` for session cookie).
+
+### Added — OIDC login + Redis session (Phase 2 sub-step 2b)
+- Dependency: `openid-client@^5.7`, `cookie@^0.6`, `@types/cookie`.
+- `SessionStore` (apps/server/src/session.store.ts) — Redis-backed sessions (`mavio:sess:<sid>`) + short-lived OIDC state store (`mavio:oidc:state:<state>`, TTL 10 min). `MAVIO_SESSION_TTL_SECONDS` env, default 86400 (1 day).
+- `OidcClientCache` — lazy `Issuer.discover` per provider, client cached 1h in memory; client secret resolved from env `client_secret_ref` at each call (rotation-safe, no plaintext at rest).
+- `LoginController`:
+  - `GET /auth/:providerId/login?return_to=/some/path` — PKCE (S256) + `state` + `nonce`, redirect to authorize endpoint. `return_to` restricted to same-origin paths.
+  - `GET /auth/:providerId/callback` — verifies state+nonce, exchanges code, idempotent-upsert principal `oidc:<providerId>:<sub>`, creates session, sets `mavio_sid` cookie (HttpOnly, SameSite=Lax, Secure in prod), redirects to `return_to`.
+  - `POST /auth/logout` — clears session + cookie.
+  - `GET /auth/me` — returns current session principal + claims.
+- `resolvePrincipalFromRequest` now checks `mavio_sid` cookie (via injected `SessionStore`) BEFORE Bearer token. Applies to admin API (`ApiKeyGuard`). MCP endpoint `POST /mcp` deliberately does NOT accept session cookie — Bearer API key only.
+- `SessionModule` wires `SessionStore`, `OidcClientCache`, TTL from env.
+
+### Added — OIDC provider registry (Phase 2 sub-step 2a)
+- New table `oidc_providers` (id, display_name, issuer_url, client_id, client_secret_ref, redirect_uri, scopes, enabled).
+- `OidcProviderRepository` in `@mavio/registry` — list/get/upsert/delete.
+- `AuthModule` + `AuthController` in server:
+  - `GET /auth/providers` — public list of enabled providers (id, displayName, loginUrl only).
+  - `GET|PUT|DELETE /api/auth/providers[/:id]` — admin CRUD (WorkspaceAdmin scope).
+- Client secret stored as env-var reference (`client_secret_ref`), not plaintext.
+- Login/callback + Redis session + `openid-client` integration land in sub-step 2b.
+
+### Changed — RBAC wiring cleanup (Phase 2 start)
+- Extracted shared `resolvePrincipalFromRequest` (apps/server/src/principal-resolver.ts); `ApiKeyGuard` and `RouterController` now use it — removed duplicated Bearer / admin-key / dev-mode logic.
+- `RbacRepository.listAssignments(principalId?)` returns assignments with row `id`.
+- `GET /api/rbac/assignments?principalId=...` (WorkspaceAdmin scope).
+- Note: the 4-scope engine (workspace/project/server/tool), builtin roles, DB-backed assignments, and `RbacGuard` were already implemented earlier in this Unreleased cycle — earlier "stubbed to `*`" note superseded. `*` remains only as the admin/dev backdoor via `MAVIO_ADMIN_API_KEY` (or unset in dev mode).
+
 ### Added — SQL importer
 - **`@mavio/import-sql`** — Postgres introspection via `information_schema`. Emits `select_<table>` (limit/offset/PK-equality filters) and `count_<table>` tools with `x-mavio-sql` dispatch metadata.
 - New `TransportDescriptor` kind `sql` with `dsn`, `allowedTables`, `readOnly` (default true).
@@ -93,7 +139,6 @@ First runnable scaffold. Not production-ready. API surface may break before `0.1
 - Typography + palette matched to the architecture overview artifact.
 
 ### Known gaps (intentional for MVP)
-- RBAC scope check is stubbed to `*` — full 4-scope engine lands in Phase 2 (see [ADR-009](docs/architecture/adr/ADR-009-rbac-builtin-opa-cedar-adapter.md)).
 - No SQL / GraphQL / MCP-mirror importers yet.
 - No health probes, no circuit breakers.
 - No secret provider — bearer secrets read directly from env vars.

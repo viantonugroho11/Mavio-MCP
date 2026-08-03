@@ -3,6 +3,11 @@ import { AppConfigModule } from "./config.module.js";
 import { CacheModule } from "./cache.module.js";
 import { RegistryModule } from "./registry.module.js";
 import { RbacModule } from "./rbac.module.js";
+import { AuthModule } from "./auth.module.js";
+import { AuthController } from "./auth.controller.js";
+import { SessionModule } from "./session.module.js";
+import { LoginController } from "./login.controller.js";
+import { SseController } from "./sse.controller.js";
 import { HealthModule, HealthProber } from "./health.module.js";
 import { RouterController } from "./router.controller.js";
 import { RouterService } from "./router.service.js";
@@ -18,7 +23,15 @@ import { SqlDispatcher } from "./sql-dispatcher.js";
 import { GraphqlDispatcher } from "./graphql-dispatcher.js";
 
 @Module({
-  imports: [AppConfigModule, CacheModule, RegistryModule, RbacModule, HealthModule],
+  imports: [
+    AppConfigModule,
+    CacheModule,
+    RegistryModule,
+    RbacModule,
+    AuthModule,
+    SessionModule,
+    HealthModule,
+  ],
   controllers: [
     RouterController,
     ServersController,
@@ -26,6 +39,9 @@ import { GraphqlDispatcher } from "./graphql-dispatcher.js";
     RbacController,
     SnapshotsController,
     PlaygroundController,
+    AuthController,
+    LoginController,
+    SseController,
   ],
   providers: [
     RouterService,
