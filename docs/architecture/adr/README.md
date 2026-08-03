@@ -20,6 +20,9 @@ Every non-trivial architectural decision lives here as an immutable, numbered re
 | [ADR-012](ADR-012-schema-migration-tool.md) | Schema migration & evolution strategy | Proposed |
 | [ADR-013](ADR-013-secret-rotation-lifecycle.md) | Secret rotation & revocation lifecycle | Proposed |
 | [ADR-014](ADR-014-open-source-license.md) | Open-source license & dual-license posture | Proposed |
+| [ADR-015](ADR-015-user-identity-model.md) | User identity & lifecycle model | Accepted |
+| [ADR-016](ADR-016-audit-trail.md) | Audit trail — capture, storage, query | Proposed |
+| [ADR-017](ADR-017-client-connection-model.md) | Client connection model — Router-only surface | Accepted |
 
 ## Template
 New ADRs must follow [`ADR-000-template.md`](ADR-000-template.md).
