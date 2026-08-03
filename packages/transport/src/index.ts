@@ -2,6 +2,7 @@ import type { MCPFrame, TransportDescriptor } from "@mavio/core";
 import { MavioError } from "@mavio/core";
 import { StdioTransport } from "./stdio.js";
 import { HttpTransport } from "./http.js";
+import { SseTransport } from "./sse.js";
 
 export interface Session {
   send(frame: MCPFrame): Promise<MCPFrame>;
@@ -17,10 +18,9 @@ export class TransportManager {
   private readonly transports = new Map<string, Transport>();
 
   constructor() {
-    const stdio = new StdioTransport();
-    const http = new HttpTransport();
-    this.register(stdio);
-    this.register(http);
+    this.register(new StdioTransport());
+    this.register(new HttpTransport());
+    this.register(new SseTransport());
   }
 
   register(transport: Transport): void {
@@ -41,3 +41,4 @@ export class TransportManager {
 
 export { StdioTransport } from "./stdio.js";
 export { HttpTransport } from "./http.js";
+export { SseTransport } from "./sse.js";

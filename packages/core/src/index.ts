@@ -27,6 +27,13 @@ export interface SqlTransportDescriptor {
   readOnly?: boolean;
 }
 
+export interface SseTransportDescriptor {
+  type: "sse";
+  url: string;
+  headers?: Record<string, string>;
+  auth?: { type: "bearer"; secretRef: string } | { type: "none" };
+}
+
 export interface GraphqlTransportDescriptor {
   type: "graphql";
   endpoint: string;
@@ -37,6 +44,7 @@ export interface GraphqlTransportDescriptor {
 export type TransportDescriptor =
   | StdioTransportDescriptor
   | HttpTransportDescriptor
+  | SseTransportDescriptor
   | SqlTransportDescriptor
   | GraphqlTransportDescriptor;
 
