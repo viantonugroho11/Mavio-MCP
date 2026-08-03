@@ -4,6 +4,37 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Added — SQL importer
+- **`@mavio/import-sql`** — Postgres introspection via `information_schema`. Emits `select_<table>` (limit/offset/PK-equality filters) and `count_<table>` tools with `x-mavio-sql` dispatch metadata.
+- New `TransportDescriptor` kind `sql` with `dsn`, `allowedTables`, `readOnly` (default true).
+- `SqlDispatcher` — per-server pooled `pg.Pool`, `BEGIN READ ONLY` when read-only, identifier allowlist + strict quoting, hard row cap (500).
+- `POST /api/imports/sql`, `mavio import sql --dsn --tables --read-only`.
+- Web import form: SQL tab with DSN + allowlist + read-only toggle.
+
+### Added — GraphQL importer
+- **`@mavio/import-graphql`** — introspection over HTTP; emits `query_<field>` and `mutation_<field>` tools with argument JSON Schema and `x-mavio-graphql` dispatch metadata.
+- New `TransportDescriptor` kind `graphql` with endpoint + optional bearer secretRef.
+- `GraphqlDispatcher` — builds variable-typed GraphQL operation from tool call, forwards headers.
+- `POST /api/imports/graphql`, `mavio import graphql --endpoint`.
+- Web import form: GraphQL tab.
+
+### Added — Inspector snapshot diff
+- `Registry.listSnapshots(serverId)` + `getSnapshot(id)`.
+- `diffCapabilities(a, b)` — added / removed / changed / unchanged by tool name + SHA-256 schema hash.
+- `GET /api/servers/:id/snapshots`, `GET /api/servers/:id/snapshots/diff?a=&b=`.
+- Web `/servers/:id/history` — pick two snapshots, three-column diff view.
+
+### Added — Playground history
+- Table `playground_runs` (principal, server, tool, args, response, latency, status, timestamp).
+- `PlaygroundRepository` in `@mavio/registry`.
+- `POST /api/playground/invoke` (records run), `GET /api/playground/runs`, `GET /api/playground/runs/:id`.
+- Web `/playground/history` — list + detail with args + response viewer. Playground page now records every invocation.
+
+### Added — Health probes
+- `HealthProber` background loop (30s interval) — HEAD for HTTP, `__typename` query for GraphQL, `SELECT 1` for SQL. Updates `servers.status`.
+- Publishes `mavio:invalidate` event so router replicas refresh their cached server list.
+- Web server list: colored status dot per row.
+
 ### Added — RBAC
 - **`@mavio/rbac`** — `PolicyEngine` interface, `BuiltinRbacEngine`, four-scope resource model (workspace · project · server · tool), 6 built-in roles (owner, admin, developer, operator, viewer, tool.invoker), explicit deny > allow precedence, role inheritance.
 - Postgres tables: `principals`, `roles`, `role_assignments` with indexes; `roles` seeded from builtin definitions on boot.
