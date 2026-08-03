@@ -11,9 +11,11 @@ export interface ServerRow {
   projectId: string;
   name: string;
   sourceType: string;
-  transport: { type: string; baseUrl?: string; command?: string };
+  transport: { type: string; baseUrl?: string; command?: string; endpoint?: string; dsn?: string };
   tags?: string[];
   version?: string;
+  status?: "healthy" | "degraded" | "down" | "unknown";
+  lastCheckedAt?: string;
 }
 
 export interface ToolInfo {
@@ -77,6 +79,105 @@ export async function callTool(name: string, args: Record<string, unknown>): Pro
     }),
   });
   return res.json();
+}
+
+export interface Snapshot {
+  id: string;
+  version: string;
+  takenAt: string;
+  capabilities: Capabilities;
+}
+
+export interface CapabilityDiff {
+  added: Array<{ name: string }>;
+  removed: Array<{ name: string }>;
+  changed: Array<{ name: string }>;
+  unchanged: number;
+}
+
+export async function listSnapshots(serverId: string): Promise<Snapshot[]> {
+  const res = await fetch(`${API_URL}/api/servers/${serverId}/snapshots`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`snapshots ${res.status}`);
+  return res.json();
+}
+
+export async function diffSnapshots(serverId: string, a: string, b: string): Promise<CapabilityDiff> {
+  const res = await fetch(
+    `${API_URL}/api/servers/${serverId}/snapshots/diff?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`,
+    { headers: authHeaders(), cache: "no-store" },
+  );
+  if (!res.ok) throw new Error(`diff ${res.status}`);
+  return res.json();
+}
+
+export interface PlaygroundRun {
+  id: string;
+  serverId: string;
+  toolName: string;
+  arguments: unknown;
+  response: unknown;
+  latencyMs: number;
+  status: "ok" | "error";
+  invokedAt: string;
+}
+
+export async function invokePlayground(
+  server: string,
+  tool: string,
+  args: Record<string, unknown>,
+): Promise<{ runId: string; latencyMs: number; response: unknown }> {
+  const res = await fetch(`${API_URL}/api/playground/invoke`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ server, tool, arguments: args }),
+  });
+  if (!res.ok) throw new Error(`invoke ${res.status}`);
+  return res.json();
+}
+
+export async function listRuns(serverId?: string): Promise<PlaygroundRun[]> {
+  const url = new URL(`${API_URL}/api/playground/runs`);
+  if (serverId) url.searchParams.set("server", serverId);
+  const res = await fetch(url, { headers: authHeaders(), cache: "no-store" });
+  if (!res.ok) throw new Error(`runs ${res.status}`);
+  return res.json();
+}
+
+export async function importSql(body: {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  dsn: string;
+  allowedTables?: string[];
+  readOnly?: boolean;
+}): Promise<{ ok: boolean; toolCount: number; tables: string[] }> {
+  const res = await fetch(`${API_URL}/api/imports/sql`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.message ?? `import ${res.status}`);
+  return json;
+}
+
+export async function importGraphqlEndpoint(body: {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  endpoint: string;
+}): Promise<{ ok: boolean; toolCount: number }> {
+  const res = await fetch(`${API_URL}/api/imports/graphql`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.message ?? `import ${res.status}`);
+  return json;
 }
 
 export async function deleteServer(id: string): Promise<void> {

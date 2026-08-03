@@ -1,6 +1,7 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { callTool, getCapabilities, listServers, type ServerRow, type ToolInfo } from "@/lib/api";
+import { getCapabilities, invokePlayground, listServers, type ServerRow, type ToolInfo } from "@/lib/api";
 
 export default function PlaygroundPage(): JSX.Element {
   const [servers, setServers] = useState<ServerRow[]>([]);
@@ -33,10 +34,8 @@ export default function PlaygroundPage(): JSX.Element {
     setPending(true);
     try {
       const args = JSON.parse(argsText);
-      const started = Date.now();
-      const response = await callTool(`${serverId}.${toolName}`, args);
-      const elapsed = Date.now() - started;
-      setResult(`// ${elapsed}ms\n${JSON.stringify(response, null, 2)}`);
+      const outcome = await invokePlayground(serverId, toolName, args);
+      setResult(`// ${outcome.latencyMs}ms · run ${outcome.runId}\n${JSON.stringify(outcome.response, null, 2)}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -46,7 +45,12 @@ export default function PlaygroundPage(): JSX.Element {
 
   return (
     <section>
-      <h1 className="font-display text-4xl italic mb-6">Playground</h1>
+      <div className="flex items-baseline justify-between mb-6">
+        <h1 className="font-display text-4xl italic">Playground</h1>
+        <Link href="/playground/history" className="text-xs font-mono uppercase tracking-widest text-accent hover:underline">
+          History →
+        </Link>
+      </div>
 
       {error && (
         <div className="mb-4 border border-rule bg-panel px-4 py-3 text-sm font-mono text-muted">{error}</div>

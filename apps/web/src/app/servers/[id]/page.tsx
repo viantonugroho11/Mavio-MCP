@@ -17,10 +17,19 @@ export default async function ServerInspector({
       <Link href="/" className="text-xs font-mono uppercase tracking-widest text-muted hover:text-ink">
         ← All servers
       </Link>
-      <h1 className="font-display text-4xl italic mt-4">{server.name}</h1>
+      <div className="flex items-baseline justify-between mt-4">
+        <h1 className="font-display text-4xl italic">{server.name}</h1>
+        <Link
+          href={`/servers/${encodeURIComponent(server.id)}/history`}
+          className="text-xs font-mono uppercase tracking-widest text-accent hover:underline"
+        >
+          History →
+        </Link>
+      </div>
       <div className="mt-2 font-mono text-xs text-muted">
         {server.id} · {server.workspaceId}/{server.projectId} · {server.sourceType} · {server.transport.type}
         {server.transport.baseUrl ? ` · ${server.transport.baseUrl}` : ""}
+        {server.status ? ` · status: ${server.status}` : ""}
       </div>
 
       <h2 className="font-display text-2xl italic mt-10 mb-4">

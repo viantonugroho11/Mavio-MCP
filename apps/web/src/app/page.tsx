@@ -3,6 +3,13 @@ import { listServers } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
+const STATUS_COLOR: Record<string, string> = {
+  healthy: "bg-emerald-600",
+  degraded: "bg-amber-500",
+  down: "bg-rose-600",
+  unknown: "bg-neutral-400",
+};
+
 export default async function ServersPage(): Promise<JSX.Element> {
   let servers: Awaited<ReturnType<typeof listServers>> = [];
   let error: string | null = null;
@@ -31,13 +38,20 @@ export default async function ServersPage(): Promise<JSX.Element> {
       )}
 
       {!error && servers.length === 0 && (
-        <p className="text-muted">No servers registered. Import an OpenAPI spec to begin.</p>
+        <p className="text-muted">No servers registered. Import an OpenAPI / SQL / GraphQL source to begin.</p>
       )}
 
       <ul className="divide-y divide-rule border-t border-b border-rule">
         {servers.map((s) => (
           <li key={s.id} className="py-4 flex items-baseline gap-4">
-            <Link href={`/servers/${encodeURIComponent(s.id)}`} className="font-mono text-accent hover:underline">
+            <span
+              className={`w-2 h-2 rounded-full ${STATUS_COLOR[s.status ?? "unknown"]}`}
+              title={s.status ?? "unknown"}
+            />
+            <Link
+              href={`/servers/${encodeURIComponent(s.id)}`}
+              className="font-mono text-accent hover:underline"
+            >
               {s.id}
             </Link>
             <span className="text-muted text-sm">
