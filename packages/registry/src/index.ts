@@ -11,6 +11,8 @@ import type { Database } from "./schema.js";
 
 export { createDb } from "./db.js";
 export type { Database } from "./schema.js";
+export { RbacRepository, hashApiKey } from "./rbac-repo.js";
+export type { Principal as StoredPrincipal, IssuedApiKey } from "./rbac-repo.js";
 
 export interface RegisterInput extends Omit<ServerDescriptor, "version"> {
   version?: string;

@@ -2,6 +2,17 @@
 
 All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added — RBAC
+- **`@mavio/rbac`** — `PolicyEngine` interface, `BuiltinRbacEngine`, four-scope resource model (workspace · project · server · tool), 6 built-in roles (owner, admin, developer, operator, viewer, tool.invoker), explicit deny > allow precedence, role inheritance.
+- Postgres tables: `principals`, `roles`, `role_assignments` with indexes; `roles` seeded from builtin definitions on boot.
+- `ApiKeyGuard` recognises DB-issued keys (`mk_*`) via SHA-256 lookup; `MAVIO_ADMIN_API_KEY` env still works as root.
+- `RbacGuard` + `@RequirePermission(action, resourceFn?)` decorator on all `/api/*` handlers.
+- Router now enforces `tool:invoke` against the resolved principal on every `tools/call` (dev mode still open).
+- Admin API: `POST/GET /api/rbac/principals`, `POST /api/rbac/principals/:id/keys` (returns the plaintext key once), `POST/DELETE /api/rbac/assignments`, `GET /api/rbac/roles`.
+- CLI: `mavio rbac principals:create`, `keys:issue`, `assign`, `roles:list`.
+
 ## [0.1.0-mvp] — 2026-08-03
 
 First runnable scaffold. Not production-ready. API surface may break before `0.1.0`.

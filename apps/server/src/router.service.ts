@@ -1,12 +1,14 @@
 import { Inject, Injectable, type OnModuleInit } from "@nestjs/common";
-import type { MCPFrame, ServerCapabilities, ServerDescriptor, ToolDefinition } from "@mavio/core";
+import type { MCPFrame, Principal, ServerCapabilities, ServerDescriptor, ToolDefinition } from "@mavio/core";
 import { NotFoundError } from "@mavio/core";
+import { Actions, type PolicyEngine } from "@mavio/rbac";
 import { Registry } from "@mavio/registry";
 import { TransportManager, type Session } from "@mavio/transport";
 import { CapabilityCache, InvalidationBus } from "@mavio/cache";
 import { request } from "undici";
 import { REGISTRY, TRANSPORT_MANAGER } from "./registry.module.js";
 import { CAPABILITY_CACHE, INVALIDATION_BUS } from "./cache.module.js";
+import { POLICY_ENGINE } from "./rbac.module.js";
 
 @Injectable()
 export class RouterService implements OnModuleInit {
@@ -15,6 +17,7 @@ export class RouterService implements OnModuleInit {
     @Inject(TRANSPORT_MANAGER) private readonly transports: TransportManager,
     @Inject(CAPABILITY_CACHE) private readonly cache: CapabilityCache,
     @Inject(INVALIDATION_BUS) private readonly bus: InvalidationBus,
+    @Inject(POLICY_ENGINE) private readonly policy: PolicyEngine,
   ) {}
 
   onModuleInit(): void {
@@ -48,7 +51,7 @@ export class RouterService implements OnModuleInit {
     return fresh;
   }
 
-  async handle(frame: MCPFrame): Promise<MCPFrame> {
+  async handle(frame: MCPFrame, principal?: Principal): Promise<MCPFrame> {
     if (frame.method === "initialize") {
       return {
         jsonrpc: "2.0",
@@ -69,7 +72,7 @@ export class RouterService implements OnModuleInit {
     if (frame.method === "tools/call") {
       const params = (frame.params ?? {}) as { name?: string; arguments?: Record<string, unknown> };
       if (!params.name) return errorFrame(frame.id, -32602, "missing tool name");
-      return this.callTool(frame, params.name, params.arguments ?? {});
+      return this.callTool(frame, params.name, params.arguments ?? {}, principal);
     }
 
     return errorFrame(frame.id, -32601, `method not supported: ${frame.method ?? "?"}`);
@@ -91,6 +94,7 @@ export class RouterService implements OnModuleInit {
     frame: MCPFrame,
     fqName: string,
     args: Record<string, unknown>,
+    principal?: Principal,
   ): Promise<MCPFrame> {
     const dot = fqName.indexOf(".");
     if (dot < 0) return errorFrame(frame.id, -32602, "tool name must be namespaced: serverId.toolName");
@@ -103,6 +107,18 @@ export class RouterService implements OnModuleInit {
     } catch (err) {
       if (err instanceof NotFoundError) return errorFrame(frame.id, -32001, err.message);
       throw err;
+    }
+
+    if (principal && !principal.scopes.includes("*")) {
+      const decision = await this.policy.can(principal, Actions.ToolInvoke, {
+        workspace: descriptor.workspaceId,
+        project: descriptor.projectId,
+        server: serverId,
+        tool: toolName,
+      });
+      if (!decision.allowed) {
+        return errorFrame(frame.id, -32003, `authz denied: ${decision.reason}`);
+      }
     }
 
     const caps = await this.loadCapabilities(serverId);

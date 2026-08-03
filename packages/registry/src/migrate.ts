@@ -48,6 +48,55 @@ async function main(): Promise<void> {
       ON capability_snapshots (server_id, taken_at DESC);
   `.execute(db);
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS principals (
+      id            text PRIMARY KEY,
+      type          text NOT NULL,
+      display_name  text NOT NULL,
+      api_key_hash  text UNIQUE,
+      workspace_id  text NOT NULL,
+      created_at    timestamptz NOT NULL DEFAULT now()
+    );
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS principals_workspace_idx
+      ON principals (workspace_id);
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS principals_api_key_hash_idx
+      ON principals (api_key_hash) WHERE api_key_hash IS NOT NULL;
+  `.execute(db);
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS roles (
+      name         text PRIMARY KEY,
+      inherits     text[] NOT NULL DEFAULT '{}',
+      permissions  jsonb NOT NULL,
+      builtin      boolean NOT NULL DEFAULT false,
+      created_at   timestamptz NOT NULL DEFAULT now()
+    );
+  `.execute(db);
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS role_assignments (
+      id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      principal_id  text NOT NULL REFERENCES principals(id) ON DELETE CASCADE,
+      role_name     text NOT NULL,
+      workspace_id  text,
+      project_id    text,
+      server_id     text,
+      tool_name     text,
+      created_at    timestamptz NOT NULL DEFAULT now()
+    );
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS role_assignments_principal_idx
+      ON role_assignments (principal_id);
+  `.execute(db);
+
   await db.destroy();
   console.log("migrations applied");
 }

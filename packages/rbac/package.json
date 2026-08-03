@@ -1,10 +1,15 @@
 {
-  "name": "@mavio/cli",
+  "name": "@mavio/rbac",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "bin": {
-    "mavio": "./dist/index.js"
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -13,15 +18,7 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@mavio/config": "workspace:*",
-    "@mavio/core": "workspace:*",
-    "@mavio/import-openapi": "workspace:*",
-    "@mavio/rbac": "workspace:*",
-    "@mavio/registry": "workspace:*",
-    "commander": "^12.1.0",
-    "kleur": "^4.1.5",
-    "undici": "^6.19.8",
-    "yaml": "^2.5.0"
+    "@mavio/core": "workspace:*"
   },
   "devDependencies": {
     "rimraf": "^5.0.5",

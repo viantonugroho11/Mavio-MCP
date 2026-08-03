@@ -16,6 +16,7 @@
     "@mavio/config": "workspace:*",
     "@mavio/core": "workspace:*",
     "@mavio/import-openapi": "workspace:*",
+    "@mavio/rbac": "workspace:*",
     "@mavio/registry": "workspace:*",
     "@mavio/transport": "workspace:*",
     "@nestjs/common": "^10.4.0",

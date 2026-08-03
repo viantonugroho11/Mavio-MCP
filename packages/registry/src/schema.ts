@@ -23,7 +23,38 @@ export interface CapabilitySnapshotsTable {
   taken_at: Generated<Date>;
 }
 
+export interface PrincipalsTable {
+  id: string;
+  type: string;
+  display_name: string;
+  api_key_hash: string | null;
+  workspace_id: string;
+  created_at: Generated<Date>;
+}
+
+export interface RoleAssignmentsTable {
+  id: Generated<string>;
+  principal_id: string;
+  role_name: string;
+  workspace_id: string | null;
+  project_id: string | null;
+  server_id: string | null;
+  tool_name: string | null;
+  created_at: Generated<Date>;
+}
+
+export interface RolesTable {
+  name: string;
+  inherits: string[];
+  permissions: unknown;
+  builtin: boolean;
+  created_at: Generated<Date>;
+}
+
 export interface Database {
   servers: ServersTable;
   capability_snapshots: CapabilitySnapshotsTable;
+  principals: PrincipalsTable;
+  role_assignments: RoleAssignmentsTable;
+  roles: RolesTable;
 }

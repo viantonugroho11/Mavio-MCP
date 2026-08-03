@@ -1,29 +1,33 @@
 import { Global, Inject, Module, type OnModuleInit } from "@nestjs/common";
-import { Registry, createDb } from "@mavio/registry";
+import { Registry, createDb, type Database } from "@mavio/registry";
+import type { Kysely } from "kysely";
 import type { MavioConfig } from "@mavio/config";
 import { TransportManager } from "@mavio/transport";
 import { MAVIO_CONFIG } from "./config.module.js";
 
 export const REGISTRY = Symbol("REGISTRY");
+export const REGISTRY_DB = Symbol("REGISTRY_DB");
 export const TRANSPORT_MANAGER = Symbol("TRANSPORT_MANAGER");
 
 @Global()
 @Module({
   providers: [
     {
-      provide: REGISTRY,
+      provide: REGISTRY_DB,
       inject: [MAVIO_CONFIG],
-      useFactory: (config: MavioConfig): Registry => {
-        const db = createDb(config.database.url);
-        return new Registry(db);
-      },
+      useFactory: (config: MavioConfig): Kysely<Database> => createDb(config.database.url),
+    },
+    {
+      provide: REGISTRY,
+      inject: [REGISTRY_DB],
+      useFactory: (db: Kysely<Database>): Registry => new Registry(db),
     },
     {
       provide: TRANSPORT_MANAGER,
       useFactory: (): TransportManager => new TransportManager(),
     },
   ],
-  exports: [REGISTRY, TRANSPORT_MANAGER],
+  exports: [REGISTRY, REGISTRY_DB, TRANSPORT_MANAGER],
 })
 export class RegistryModule implements OnModuleInit {
   constructor(

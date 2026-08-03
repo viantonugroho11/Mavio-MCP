@@ -1,8 +1,10 @@
 import { Body, Controller, Inject, Post, UseGuards } from "@nestjs/common";
+import { Actions } from "@mavio/rbac";
 import { Registry } from "@mavio/registry";
 import { buildBlueprint, loadOpenApi } from "@mavio/import-openapi";
 import { REGISTRY } from "./registry.module.js";
 import { ApiKeyGuard } from "./auth.guard.js";
+import { RbacGuard, RequirePermission } from "./rbac.guard.js";
 import { RouterService } from "./router.service.js";
 
 interface ImportOpenApiBody {
@@ -16,7 +18,7 @@ interface ImportOpenApiBody {
 }
 
 @Controller("api/imports")
-@UseGuards(ApiKeyGuard)
+@UseGuards(ApiKeyGuard, RbacGuard)
 export class ImportsController {
   constructor(
     @Inject(REGISTRY) private readonly registry: Registry,
@@ -24,6 +26,7 @@ export class ImportsController {
   ) {}
 
   @Post("openapi")
+  @RequirePermission(Actions.ServerWrite)
   async importOpenapi(@Body() body: ImportOpenApiBody): Promise<{ ok: true; toolCount: number }> {
     const doc = await loadOpenApi({ url: body.url, path: body.path });
     const blueprint = buildBlueprint(doc, body.baseUrl);
