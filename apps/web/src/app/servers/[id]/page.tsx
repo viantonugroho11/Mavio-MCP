@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getCapabilities, getServer } from "@/lib/api";
+import { ToolExplorer } from "@/components/tool-explorer";
 
 export const dynamic = "force-dynamic";
 
@@ -39,24 +40,7 @@ export default async function ServerInspector({
       {tools.length === 0 ? (
         <p className="text-muted text-sm">No capability snapshot yet.</p>
       ) : (
-        <ul className="divide-y divide-rule border-t border-b border-rule">
-          {tools.map((t) => (
-            <li key={t.name} className="py-4">
-              <div className="flex items-baseline gap-3">
-                <code className="font-mono text-sm text-accent">{server.id}.{t.name}</code>
-                {t.description && <span className="text-sm text-muted">{t.description}</span>}
-              </div>
-              <details className="mt-2">
-                <summary className="text-xs font-mono uppercase tracking-widest text-muted cursor-pointer">
-                  input schema
-                </summary>
-                <pre className="mt-2 bg-panel p-3 text-xs font-mono overflow-x-auto rounded">
-                  {JSON.stringify(t.inputSchema, null, 2)}
-                </pre>
-              </details>
-            </li>
-          ))}
-        </ul>
+        <ToolExplorer serverId={server.id} tools={tools} />
       )}
     </section>
   );

@@ -180,6 +180,37 @@ export async function importGraphqlEndpoint(body: {
   return json;
 }
 
+export interface AuthProvider {
+  id: string;
+  displayName: string;
+  loginUrl: string;
+}
+
+export interface Me {
+  principal: { id: string; type: string; workspaceId: string; scopes: string[] };
+  email?: string;
+  displayName?: string;
+  providerId: string;
+  expiresAt: number;
+}
+
+export async function listAuthProviders(): Promise<AuthProvider[]> {
+  const res = await fetch(`${API_URL}/auth/providers`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`providers ${res.status}`);
+  return res.json();
+}
+
+export async function fetchMe(): Promise<Me | null> {
+  const res = await fetch(`${API_URL}/auth/me`, { credentials: "include", cache: "no-store" });
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error(`me ${res.status}`);
+  return res.json();
+}
+
+export async function logout(): Promise<void> {
+  await fetch(`${API_URL}/auth/logout`, { method: "POST", credentials: "include" });
+}
+
 export async function deleteServer(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/servers/${id}`, {
     method: "DELETE",
