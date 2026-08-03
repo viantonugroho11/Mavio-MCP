@@ -1,0 +1,26 @@
+{
+  "name": "mavio-mcp",
+  "version": "0.1.0-mvp",
+  "private": true,
+  "description": "All-in-one developer toolkit for the Model Context Protocol ecosystem",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "clean": "turbo run clean && rimraf node_modules",
+    "mavio": "node apps/cli/dist/index.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "rimraf": "^5.0.5",
+    "turbo": "^2.1.0",
+    "typescript": "^5.5.4"
+  }
+}
