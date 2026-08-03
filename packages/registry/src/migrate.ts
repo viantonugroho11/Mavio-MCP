@@ -116,6 +116,26 @@ async function main(): Promise<void> {
       ON playground_runs (server_id, invoked_at DESC);
   `.execute(db);
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS oidc_providers (
+      id                 text PRIMARY KEY,
+      display_name       text NOT NULL,
+      issuer_url         text NOT NULL,
+      client_id          text NOT NULL,
+      client_secret_ref  text NOT NULL,
+      redirect_uri       text NOT NULL,
+      scopes             text[] NOT NULL DEFAULT ARRAY['openid','profile','email'],
+      enabled            boolean NOT NULL DEFAULT true,
+      created_at         timestamptz NOT NULL DEFAULT now(),
+      updated_at         timestamptz NOT NULL DEFAULT now()
+    );
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS oidc_providers_enabled_idx
+      ON oidc_providers (enabled) WHERE enabled = true;
+  `.execute(db);
+
   await db.destroy();
   console.log("migrations applied");
 }

@@ -15,6 +15,11 @@ export { RbacRepository, hashApiKey } from "./rbac-repo.js";
 export type { Principal as StoredPrincipal, IssuedApiKey } from "./rbac-repo.js";
 export { diffCapabilities, type CapabilityDiff, type ToolChange } from "./diff.js";
 export { PlaygroundRepository, type PlaygroundRun } from "./playground-repo.js";
+export {
+  OidcProviderRepository,
+  type OidcProvider,
+  type OidcProviderInput,
+} from "./oidc-repo.js";
 
 export interface RegisterInput extends Omit<ServerDescriptor, "version"> {
   version?: string;

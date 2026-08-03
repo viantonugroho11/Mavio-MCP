@@ -51,6 +51,19 @@ export interface RolesTable {
   created_at: Generated<Date>;
 }
 
+export interface OidcProvidersTable {
+  id: string;
+  display_name: string;
+  issuer_url: string;
+  client_id: string;
+  client_secret_ref: string;
+  redirect_uri: string;
+  scopes: string[];
+  enabled: boolean;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface PlaygroundRunsTable {
   id: Generated<string>;
   principal_id: string;
@@ -70,4 +83,5 @@ export interface Database {
   role_assignments: RoleAssignmentsTable;
   roles: RolesTable;
   playground_runs: PlaygroundRunsTable;
+  oidc_providers: OidcProvidersTable;
 }
