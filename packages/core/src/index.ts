@@ -2,7 +2,7 @@ export type ServerId = string;
 export type WorkspaceId = string;
 export type ProjectId = string;
 
-export type TransportKind = "stdio" | "http" | "sse" | "ws";
+export type TransportKind = "stdio" | "http" | "sse" | "ws" | "sql" | "graphql";
 
 export interface StdioTransportDescriptor {
   type: "stdio";
@@ -19,9 +19,26 @@ export interface HttpTransportDescriptor {
   auth?: { type: "bearer"; secretRef: string } | { type: "none" };
 }
 
+export interface SqlTransportDescriptor {
+  type: "sql";
+  dialect: "postgres";
+  dsn: string;
+  allowedTables?: string[];
+  readOnly?: boolean;
+}
+
+export interface GraphqlTransportDescriptor {
+  type: "graphql";
+  endpoint: string;
+  headers?: Record<string, string>;
+  auth?: { type: "bearer"; secretRef: string } | { type: "none" };
+}
+
 export type TransportDescriptor =
   | StdioTransportDescriptor
-  | HttpTransportDescriptor;
+  | HttpTransportDescriptor
+  | SqlTransportDescriptor
+  | GraphqlTransportDescriptor;
 
 export interface ToolDefinition {
   name: string;
@@ -46,6 +63,8 @@ export interface ServerDescriptor {
   tags?: string[];
   version?: string;
   metadata?: Record<string, unknown>;
+  status?: ServerStatus;
+  lastCheckedAt?: string;
 }
 
 export type ServerStatus = "healthy" | "degraded" | "down" | "unknown";

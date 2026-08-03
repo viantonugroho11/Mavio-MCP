@@ -20,7 +20,32 @@ const HttpTransport = z.object({
     .optional(),
 });
 
-const Transport = z.discriminatedUnion("type", [StdioTransport, HttpTransport]);
+const SqlTransport = z.object({
+  type: z.literal("sql"),
+  dialect: z.literal("postgres"),
+  dsn: z.string(),
+  allowedTables: z.array(z.string()).optional(),
+  readOnly: z.boolean().default(true),
+});
+
+const GraphqlTransport = z.object({
+  type: z.literal("graphql"),
+  endpoint: z.string().url(),
+  headers: z.record(z.string()).optional(),
+  auth: z
+    .union([
+      z.object({ type: z.literal("bearer"), secretRef: z.string() }),
+      z.object({ type: z.literal("none") }),
+    ])
+    .optional(),
+});
+
+const Transport = z.discriminatedUnion("type", [
+  StdioTransport,
+  HttpTransport,
+  SqlTransport,
+  GraphqlTransport,
+]);
 
 const OpenApiSource = z.object({
   type: z.literal("openapi"),
@@ -28,11 +53,22 @@ const OpenApiSource = z.object({
   path: z.string().optional(),
 });
 
+const SqlSource = z.object({
+  type: z.literal("sql"),
+  dsn: z.string(),
+  allowedTables: z.array(z.string()).optional(),
+});
+
+const GraphqlSource = z.object({
+  type: z.literal("graphql"),
+  endpoint: z.string().url(),
+});
+
 const McpSource = z.object({
   type: z.literal("mcp"),
 });
 
-const Source = z.discriminatedUnion("type", [OpenApiSource, McpSource]);
+const Source = z.discriminatedUnion("type", [OpenApiSource, SqlSource, GraphqlSource, McpSource]);
 
 const ServerConfig = z.object({
   id: z.string().min(1),
