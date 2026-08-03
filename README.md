@@ -22,7 +22,7 @@ Repository name: `Mavio-MCP` (product name: **Mavio-MCP**).
 
 ## Status
 
-**MVP scaffold landed (v0.1.0-mvp).** Runs: monorepo, Postgres/Redis via Docker Compose, unified NestJS server (router + admin API), OpenAPI importer, `mavio` CLI. Web console defers to Phase 1.5.
+**MVP scaffold landed (v0.1.0-mvp).** Runs: monorepo, Postgres/Redis via Docker Compose, unified NestJS server (router + admin API), OpenAPI importer, `mavio` CLI, Next.js web console (servers · inspector · playground · imports).
 
 ## Tech stack
 
@@ -104,6 +104,10 @@ node apps/cli/dist/index.js import openapi \
 curl -X POST http://localhost:4000/mcp \
   -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+# 9. web console (in a new shell)
+pnpm --filter @mavio/web dev
+# open http://localhost:3000
 ```
 
 Set `MAVIO_ADMIN_API_KEY` to require a bearer token on `/api/*` (dev default: open).

@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Inject, Param, Post, UseGuards } from "@nestjs/common";
-import type { ServerDescriptor } from "@mavio/core";
+import type { ServerCapabilities, ServerDescriptor } from "@mavio/core";
 import { Registry } from "@mavio/registry";
 import { REGISTRY } from "./registry.module.js";
 import { ApiKeyGuard } from "./auth.guard.js";
@@ -28,6 +28,11 @@ export class ServersController {
     const result = await this.registry.register(body);
     this.router.invalidate();
     return result;
+  }
+
+  @Get(":id/capabilities")
+  async capabilities(@Param("id") id: string): Promise<ServerCapabilities | { tools: [] }> {
+    return (await this.registry.latestCapabilities(id)) ?? { tools: [] };
   }
 
   @Delete(":id")
