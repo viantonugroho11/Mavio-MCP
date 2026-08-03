@@ -97,6 +97,25 @@ async function main(): Promise<void> {
       ON role_assignments (principal_id);
   `.execute(db);
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS playground_runs (
+      id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      principal_id  text NOT NULL,
+      server_id     text NOT NULL,
+      tool_name     text NOT NULL,
+      arguments     jsonb NOT NULL,
+      response      jsonb NOT NULL,
+      latency_ms    integer NOT NULL,
+      status        text NOT NULL,
+      invoked_at    timestamptz NOT NULL DEFAULT now()
+    );
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS playground_runs_invoked_idx
+      ON playground_runs (server_id, invoked_at DESC);
+  `.execute(db);
+
   await db.destroy();
   console.log("migrations applied");
 }

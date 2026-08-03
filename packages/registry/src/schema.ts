@@ -51,10 +51,23 @@ export interface RolesTable {
   created_at: Generated<Date>;
 }
 
+export interface PlaygroundRunsTable {
+  id: Generated<string>;
+  principal_id: string;
+  server_id: string;
+  tool_name: string;
+  arguments: unknown;
+  response: unknown;
+  latency_ms: number;
+  status: string;
+  invoked_at: Generated<Date>;
+}
+
 export interface Database {
   servers: ServersTable;
   capability_snapshots: CapabilitySnapshotsTable;
   principals: PrincipalsTable;
   role_assignments: RoleAssignmentsTable;
   roles: RolesTable;
+  playground_runs: PlaygroundRunsTable;
 }

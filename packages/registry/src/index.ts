@@ -13,6 +13,8 @@ export { createDb } from "./db.js";
 export type { Database } from "./schema.js";
 export { RbacRepository, hashApiKey } from "./rbac-repo.js";
 export type { Principal as StoredPrincipal, IssuedApiKey } from "./rbac-repo.js";
+export { diffCapabilities, type CapabilityDiff, type ToolChange } from "./diff.js";
+export { PlaygroundRepository, type PlaygroundRun } from "./playground-repo.js";
 
 export interface RegisterInput extends Omit<ServerDescriptor, "version"> {
   version?: string;
@@ -103,6 +105,34 @@ export class Registry {
     return row ? (row.capabilities as ServerCapabilities) : null;
   }
 
+  async listSnapshots(
+    serverId: string,
+    limit = 25,
+  ): Promise<Array<{ id: string; version: string; takenAt: Date; capabilities: ServerCapabilities }>> {
+    const rows = await this.db
+      .selectFrom("capability_snapshots")
+      .selectAll()
+      .where("server_id", "=", serverId)
+      .orderBy("taken_at", "desc")
+      .limit(limit)
+      .execute();
+    return rows.map((r) => ({
+      id: r.id,
+      version: r.version,
+      takenAt: r.taken_at,
+      capabilities: r.capabilities as ServerCapabilities,
+    }));
+  }
+
+  async getSnapshot(id: string): Promise<{ version: string; capabilities: ServerCapabilities } | null> {
+    const row = await this.db
+      .selectFrom("capability_snapshots")
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirst();
+    return row ? { version: row.version, capabilities: row.capabilities as ServerCapabilities } : null;
+  }
+
   private toDescriptor(row: {
     id: string;
     workspace_id: string;
@@ -113,6 +143,8 @@ export class Registry {
     version: string | null;
     metadata: unknown;
     tags: string[];
+    status?: string;
+    updated_at?: Date;
   }): ServerDescriptor {
     return {
       id: row.id,
@@ -124,6 +156,8 @@ export class Registry {
       version: row.version ?? undefined,
       metadata: (row.metadata as Record<string, unknown>) ?? {},
       tags: row.tags,
+      status: (row.status as ServerDescriptor["status"]) ?? "unknown",
+      lastCheckedAt: row.updated_at?.toISOString(),
     };
   }
 }
