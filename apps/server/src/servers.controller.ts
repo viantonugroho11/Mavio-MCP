@@ -26,7 +26,7 @@ export class ServersController {
   @Post()
   async register(@Body() body: ServerDescriptor): Promise<ServerDescriptor> {
     const result = await this.registry.register(body);
-    this.router.invalidate();
+    await this.router.invalidate(body.id);
     return result;
   }
 
@@ -38,7 +38,7 @@ export class ServersController {
   @Delete(":id")
   async remove(@Param("id") id: string): Promise<{ ok: true }> {
     await this.registry.unregister(id);
-    this.router.invalidate();
+    await this.router.invalidate(id);
     return { ok: true };
   }
 }

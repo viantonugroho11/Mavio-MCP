@@ -1,39 +1,51 @@
-import { Inject, Injectable } from "@nestjs/common";
-import type { MCPFrame, ServerDescriptor, ToolDefinition } from "@mavio/core";
-import { MavioError, NotFoundError } from "@mavio/core";
+import { Inject, Injectable, type OnModuleInit } from "@nestjs/common";
+import type { MCPFrame, ServerCapabilities, ServerDescriptor, ToolDefinition } from "@mavio/core";
+import { NotFoundError } from "@mavio/core";
 import { Registry } from "@mavio/registry";
 import { TransportManager, type Session } from "@mavio/transport";
+import { CapabilityCache, InvalidationBus } from "@mavio/cache";
 import { request } from "undici";
 import { REGISTRY, TRANSPORT_MANAGER } from "./registry.module.js";
-
-interface CachedServer {
-  descriptor: ServerDescriptor;
-  tools: ToolDefinition[];
-}
+import { CAPABILITY_CACHE, INVALIDATION_BUS } from "./cache.module.js";
 
 @Injectable()
-export class RouterService {
-  private cache: Promise<CachedServer[]> | null = null;
-
+export class RouterService implements OnModuleInit {
   constructor(
     @Inject(REGISTRY) private readonly registry: Registry,
     @Inject(TRANSPORT_MANAGER) private readonly transports: TransportManager,
+    @Inject(CAPABILITY_CACHE) private readonly cache: CapabilityCache,
+    @Inject(INVALIDATION_BUS) private readonly bus: InvalidationBus,
   ) {}
 
-  invalidate(): void {
-    this.cache = null;
+  onModuleInit(): void {
+    this.bus.onEvent((event) => {
+      if (event.kind === "servers") {
+        void this.cache.invalidate();
+      } else if (event.kind === "server" && event.serverId) {
+        void this.cache.invalidate(event.serverId);
+      }
+    });
   }
 
-  private async loadServers(): Promise<CachedServer[]> {
-    if (!this.cache) {
-      this.cache = this.buildServers();
-    }
-    return this.cache;
+  async invalidate(serverId?: string): Promise<void> {
+    await this.cache.invalidate(serverId);
+    await this.bus.publish(serverId ? { kind: "server", serverId } : { kind: "servers" });
   }
 
-  private async buildServers(): Promise<CachedServer[]> {
-    const descriptors = await this.registry.list();
-    return descriptors.map((d) => ({ descriptor: d, tools: [] }));
+  private async loadServers(): Promise<ServerDescriptor[]> {
+    const cached = await this.cache.getServerList();
+    if (cached) return cached;
+    const list = await this.registry.list();
+    await this.cache.setServerList(list);
+    return list;
+  }
+
+  private async loadCapabilities(serverId: string): Promise<ServerCapabilities | null> {
+    const cached = await this.cache.getCapabilities(serverId);
+    if (cached) return cached;
+    const fresh = await this.registry.latestCapabilities(serverId);
+    if (fresh) await this.cache.setCapabilities(serverId, fresh);
+    return fresh;
   }
 
   async handle(frame: MCPFrame): Promise<MCPFrame> {
@@ -67,19 +79,12 @@ export class RouterService {
     const servers = await this.loadServers();
     const out: Array<ToolDefinition & { server: string }> = [];
     for (const s of servers) {
-      const tools = await this.ensureTools(s);
-      for (const t of tools) {
-        out.push({ ...t, name: `${s.descriptor.id}.${t.name}`, server: s.descriptor.id });
+      const caps = await this.loadCapabilities(s.id);
+      for (const t of caps?.tools ?? []) {
+        out.push({ ...t, name: `${s.id}.${t.name}`, server: s.id });
       }
     }
     return out;
-  }
-
-  private async ensureTools(cached: CachedServer): Promise<ToolDefinition[]> {
-    if (cached.tools.length > 0) return cached.tools;
-    const snap = await this.registry.latestCapabilities(cached.descriptor.id);
-    cached.tools = snap?.tools ?? [];
-    return cached.tools;
   }
 
   private async callTool(
@@ -100,11 +105,10 @@ export class RouterService {
       throw err;
     }
 
-    const snap = await this.registry.latestCapabilities(serverId);
-    const tool = snap?.tools?.find((t) => t.name === toolName);
+    const caps = await this.loadCapabilities(serverId);
+    const tool = caps?.tools?.find((t) => t.name === toolName);
     if (!tool) return errorFrame(frame.id, -32001, `tool ${fqName} not found`);
 
-    // MVP: for openapi-generated tools (has x-mavio-http), route via HTTP directly
     const httpMeta = (tool.inputSchema as Record<string, unknown>)["x-mavio-http"] as
       | { method: string; path: string }
       | undefined;
@@ -113,7 +117,6 @@ export class RouterService {
       return this.callOpenApiTool(frame, descriptor.transport.baseUrl, httpMeta, args);
     }
 
-    // Native MCP passthrough
     let session: Session | undefined;
     try {
       session = await this.transports.open(descriptor.transport);

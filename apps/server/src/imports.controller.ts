@@ -41,7 +41,7 @@ export class ImportsController {
       tools: blueprint.tools,
       serverInfo: { name: blueprint.serverName, version: blueprint.serverVersion },
     });
-    this.router.invalidate();
+    await this.router.invalidate(body.id);
     return { ok: true, toolCount: blueprint.tools.length };
   }
 }
