@@ -9,6 +9,13 @@ import { request } from "undici";
 import { REGISTRY, TRANSPORT_MANAGER } from "./registry.module.js";
 import { CAPABILITY_CACHE, INVALIDATION_BUS } from "./cache.module.js";
 import { POLICY_ENGINE } from "./rbac.module.js";
+import { SqlDispatcher } from "./sql-dispatcher.js";
+import { GraphqlDispatcher } from "./graphql-dispatcher.js";
+
+interface DispatchResult {
+  result: unknown;
+  isError: boolean;
+}
 
 @Injectable()
 export class RouterService implements OnModuleInit {
@@ -18,6 +25,8 @@ export class RouterService implements OnModuleInit {
     @Inject(CAPABILITY_CACHE) private readonly cache: CapabilityCache,
     @Inject(INVALIDATION_BUS) private readonly bus: InvalidationBus,
     @Inject(POLICY_ENGINE) private readonly policy: PolicyEngine,
+    private readonly sql: SqlDispatcher,
+    private readonly graphql: GraphqlDispatcher,
   ) {}
 
   onModuleInit(): void {
@@ -26,12 +35,14 @@ export class RouterService implements OnModuleInit {
         void this.cache.invalidate();
       } else if (event.kind === "server" && event.serverId) {
         void this.cache.invalidate(event.serverId);
+        this.sql.invalidate(event.serverId);
       }
     });
   }
 
   async invalidate(serverId?: string): Promise<void> {
     await this.cache.invalidate(serverId);
+    if (serverId) this.sql.invalidate(serverId);
     await this.bus.publish(serverId ? { kind: "server", serverId } : { kind: "servers" });
   }
 
@@ -78,6 +89,19 @@ export class RouterService implements OnModuleInit {
     return errorFrame(frame.id, -32601, `method not supported: ${frame.method ?? "?"}`);
   }
 
+  async invokeAndReturn(
+    fqName: string,
+    args: Record<string, unknown>,
+    principal?: Principal,
+  ): Promise<MCPFrame> {
+    return this.callTool(
+      { jsonrpc: "2.0", id: Date.now(), method: "tools/call", params: { name: fqName, arguments: args } },
+      fqName,
+      args,
+      principal,
+    );
+  }
+
   private async listAllTools(): Promise<Array<ToolDefinition & { server: string }>> {
     const servers = await this.loadServers();
     const out: Array<ToolDefinition & { server: string }> = [];
@@ -116,48 +140,72 @@ export class RouterService implements OnModuleInit {
         server: serverId,
         tool: toolName,
       });
-      if (!decision.allowed) {
-        return errorFrame(frame.id, -32003, `authz denied: ${decision.reason}`);
-      }
+      if (!decision.allowed) return errorFrame(frame.id, -32003, `authz denied: ${decision.reason}`);
     }
 
     const caps = await this.loadCapabilities(serverId);
     const tool = caps?.tools?.find((t) => t.name === toolName);
     if (!tool) return errorFrame(frame.id, -32001, `tool ${fqName} not found`);
+    const schema = tool.inputSchema as Record<string, unknown>;
 
-    const httpMeta = (tool.inputSchema as Record<string, unknown>)["x-mavio-http"] as
-      | { method: string; path: string }
-      | undefined;
-
-    if (descriptor.transport.type === "http" && httpMeta) {
-      return this.callOpenApiTool(frame, descriptor.transport.baseUrl, httpMeta, args);
-    }
-
-    let session: Session | undefined;
     try {
-      session = await this.transports.open(descriptor.transport);
-      const forwarded: MCPFrame = {
+      const dispatched = await this.dispatchByKind(descriptor, schema, args);
+      return {
         jsonrpc: "2.0",
-        id: frame.id ?? Date.now(),
-        method: "tools/call",
-        params: { name: toolName, arguments: args },
+        id: frame.id ?? null,
+        result: {
+          content: [
+            {
+              type: "text",
+              text:
+                typeof dispatched.result === "string"
+                  ? dispatched.result
+                  : JSON.stringify(dispatched.result),
+            },
+          ],
+          isError: dispatched.isError,
+        },
       };
-      const response = await session.send(forwarded);
-      return { ...response, id: frame.id ?? null };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return errorFrame(frame.id, -32000, `dispatch failed: ${message}`);
-    } finally {
-      if (session) await session.close().catch(() => undefined);
     }
   }
 
-  private async callOpenApiTool(
-    frame: MCPFrame,
+  private async dispatchByKind(
+    descriptor: ServerDescriptor,
+    schema: Record<string, unknown>,
+    args: Record<string, unknown>,
+  ): Promise<DispatchResult> {
+    const httpMeta = schema["x-mavio-http"] as { method: string; path: string } | undefined;
+    const sqlMeta = schema["x-mavio-sql"] as
+      | { kind: "select" | "count"; schema: string; table: string; columns?: string[]; filterable?: string[] }
+      | undefined;
+    const graphqlMeta = schema["x-mavio-graphql"] as
+      | { operation: "query" | "mutation"; field: string; argNames: string[]; returnType: string }
+      | undefined;
+
+    if (descriptor.transport.type === "http" && httpMeta) {
+      return this.dispatchOpenApi(descriptor.transport.baseUrl, httpMeta, args);
+    }
+    if (descriptor.transport.type === "sql" && sqlMeta) {
+      const result = await this.sql.dispatch(descriptor.id, descriptor.transport, sqlMeta, args);
+      return { result, isError: false };
+    }
+    if (descriptor.transport.type === "graphql" && graphqlMeta) {
+      const result = (await this.graphql.dispatch(descriptor.transport, graphqlMeta, args)) as {
+        errors?: unknown[];
+      };
+      return { result, isError: Array.isArray(result.errors) && result.errors.length > 0 };
+    }
+    return this.dispatchNativeMcp(descriptor, args, schema);
+  }
+
+  private async dispatchOpenApi(
     baseUrl: string,
     meta: { method: string; path: string },
     args: Record<string, unknown>,
-  ): Promise<MCPFrame> {
+  ): Promise<DispatchResult> {
     let path = meta.path;
     const query = new URLSearchParams();
     const body = args["body"];
@@ -171,25 +219,34 @@ export class RouterService implements OnModuleInit {
       }
     }
     const url = `${baseUrl.replace(/\/$/, "")}${path}${query.toString() ? `?${query}` : ""}`;
+    const res = await request(url, {
+      method: meta.method,
+      headers: body !== undefined ? { "content-type": "application/json" } : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const text = await res.body.text();
+    const parsed = safeJson(text) ?? text;
+    return { result: parsed, isError: res.statusCode >= 400 };
+  }
+
+  private async dispatchNativeMcp(
+    descriptor: ServerDescriptor,
+    args: Record<string, unknown>,
+    _schema: Record<string, unknown>,
+  ): Promise<DispatchResult> {
+    let session: Session | undefined;
     try {
-      const res = await request(url, {
-        method: meta.method,
-        headers: body !== undefined ? { "content-type": "application/json" } : undefined,
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-      });
-      const text = await res.body.text();
-      const parsed = safeJson(text) ?? text;
-      return {
+      session = await this.transports.open(descriptor.transport);
+      const forwarded: MCPFrame = {
         jsonrpc: "2.0",
-        id: frame.id ?? null,
-        result: {
-          content: [{ type: "text", text: typeof parsed === "string" ? parsed : JSON.stringify(parsed) }],
-          isError: res.statusCode >= 400,
-        },
+        id: Date.now(),
+        method: "tools/call",
+        params: { arguments: args },
       };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return errorFrame(frame.id, -32000, `http tool failed: ${message}`);
+      const response = await session.send(forwarded);
+      return { result: response.result ?? response.error, isError: Boolean(response.error) };
+    } finally {
+      if (session) await session.close().catch(() => undefined);
     }
   }
 }
