@@ -182,7 +182,13 @@ export class RouterService implements OnModuleInit {
       | { kind: "select" | "count"; schema: string; table: string; columns?: string[]; filterable?: string[] }
       | undefined;
     const graphqlMeta = schema["x-mavio-graphql"] as
-      | { operation: "query" | "mutation"; field: string; argNames: string[]; returnType: string }
+      | {
+          operation: "query" | "mutation";
+          field: string;
+          args: Array<{ name: string; gqlType: string }>;
+          returnType: string;
+          selection?: string;
+        }
       | undefined;
 
     if (descriptor.transport.type === "http" && httpMeta) {
