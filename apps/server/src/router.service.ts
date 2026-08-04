@@ -6,7 +6,13 @@ import { Registry } from "@mavio/registry";
 import { TransportManager, type Session } from "@mavio/transport";
 import { CapabilityCache, InvalidationBus, RateLimiter, type Redis } from "@mavio/cache";
 import type { MavioConfig } from "@mavio/config";
-import { BREAKER_STATE_VALUE, MavioMetrics } from "@mavio/observability";
+import {
+  BREAKER_STATE_VALUE,
+  injectTraceHeaders,
+  MavioMetrics,
+  SpanKind,
+  withSpan,
+} from "@mavio/observability";
 import { request } from "undici";
 import { REGISTRY, TRANSPORT_MANAGER } from "./registry.module.js";
 import { CAPABILITY_CACHE, INVALIDATION_BUS, REDIS } from "./cache.module.js";
@@ -176,8 +182,21 @@ export class RouterService implements OnModuleInit {
     const started = process.hrtime.bigint();
     let outcome: "ok" | "error" | "circuit_open" = "ok";
     try {
-      const dispatched = await this.breaker.execute(serverId, () =>
-        this.dispatchByKind(descriptor, toolName, schema, args),
+      const dispatched = await withSpan(
+        `mavio.router.call ${serverId}.${toolName}`,
+        () =>
+          this.breaker.execute(serverId, () =>
+            this.dispatchByKind(descriptor, toolName, schema, args),
+          ),
+        {
+          kind: SpanKind.SERVER,
+          attributes: {
+            "mavio.server.id": serverId,
+            "mavio.tool.name": toolName,
+            "mavio.transport.kind": descriptor.transport.type,
+            "mavio.principal.id": principal?.id,
+          },
+        },
       );
       outcome = dispatched.isError ? "error" : "ok";
       if (dispatched.isError) {
@@ -273,9 +292,10 @@ export class RouterService implements OnModuleInit {
       }
     }
     const url = `${baseUrl.replace(/\/$/, "")}${path}${query.toString() ? `?${query}` : ""}`;
+    const headers: Record<string, string> = body !== undefined ? { "content-type": "application/json" } : {};
     const res = await request(url, {
       method: meta.method as "GET" | "POST" | "PUT" | "DELETE" | "PATCH",
-      headers: body !== undefined ? { "content-type": "application/json" } : undefined,
+      headers: injectTraceHeaders(headers),
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     const text = await res.body.text();

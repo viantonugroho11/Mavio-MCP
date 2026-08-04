@@ -1,8 +1,10 @@
 import "reflect-metadata";
+import { bootstrapTracing, shutdownTracing } from "@mavio/observability";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module.js";
 
 async function bootstrap(): Promise<void> {
+  bootstrapTracing({ serviceName: "mavio-mcp-server", serviceVersion: "0.1.0" });
   const app = await NestFactory.create(AppModule, { bufferLogs: false });
   app.enableCors({ origin: true });
   const port = Number(process.env.MAVIO_HTTP_PORT ?? 4000);
@@ -10,6 +12,12 @@ async function bootstrap(): Promise<void> {
   console.log(`mavio server listening on http://localhost:${port}`);
   console.log(`  MCP endpoint: POST http://localhost:${port}/mcp`);
   console.log(`  Admin API:    http://localhost:${port}/api/servers`);
+  console.log(`  Metrics:      GET http://localhost:${port}/metrics`);
+  for (const sig of ["SIGTERM", "SIGINT"] as const) {
+    process.on(sig, () => {
+      void shutdownTracing().finally(() => process.exit(0));
+    });
+  }
 }
 
 bootstrap().catch((err) => {
