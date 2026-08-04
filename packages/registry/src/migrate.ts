@@ -136,6 +136,17 @@ async function main(): Promise<void> {
       ON oidc_providers (enabled) WHERE enabled = true;
   `.execute(db);
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS plugins (
+      name          text PRIMARY KEY,
+      version       text NOT NULL,
+      enabled       boolean NOT NULL DEFAULT true,
+      package_dir   text,
+      installed_at  timestamptz NOT NULL DEFAULT now(),
+      updated_at    timestamptz NOT NULL DEFAULT now()
+    );
+  `.execute(db);
+
   await db.destroy();
   console.log("migrations applied");
 }

@@ -76,6 +76,15 @@ export interface PlaygroundRunsTable {
   invoked_at: Generated<Date>;
 }
 
+export interface PluginsTable {
+  name: string;
+  version: string;
+  enabled: boolean;
+  package_dir: string | null;
+  installed_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   servers: ServersTable;
   capability_snapshots: CapabilitySnapshotsTable;
@@ -84,4 +93,5 @@ export interface Database {
   roles: RolesTable;
   playground_runs: PlaygroundRunsTable;
   oidc_providers: OidcProvidersTable;
+  plugins: PluginsTable;
 }

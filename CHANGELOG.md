@@ -4,6 +4,15 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Added — Plugin Manager + `@mavio/sdk` v1 (Phase 3 sub-step 3a)
+- **`@mavio/sdk`** new pkg: `PluginManifest`, `PluginContext`, `Importer` / `TransportAdapter` / `Middleware` / `AuthProvider` interfaces, `MAVIO_API_VERSION="1.0.0"` constant. Public surface for plugin authors.
+- **`@mavio/plugin`** new pkg: `PluginManager` with local `node_modules/@mavio-plugin/*` discovery, semver gate on `manifest.mavioApi` vs host `MAVIO_API_VERSION`, `loadAll` / `enable` / `disable` / `list`. In-memory registries for importers/transports/middleware/auth. `PluginStateStore` interface + `InMemoryStateStore` default.
+- **DB**: `plugins` table (name PK, version, enabled, package_dir, timestamps) + `PluginRepository` (`list`, `upsert`, `setEnabled`). Wired into migrate.ts.
+- **Server**: `PluginModule` (Global) bootstraps manager, discovers on startup, persists via DB-backed `PluginStateStore`. `PluginsController` — `GET /api/plugins`, `POST /api/plugins/:name/enable|disable`, guarded by `plugin:install` RBAC action.
+- **CLI**: `mavio plugin list|enable|disable` hits admin API.
+- Pre-existing build blockers fixed in passing: `MavioError.cause override`, `@mavio/cache` ioredis named import, `@mavio/server` missing `kysely`/`@types/pg` deps, `RouterService` method cast.
+- **Deferred (TODO)**: VM2/worker sandbox isolation, remote install + Sigstore verify, UI extension surface, middleware hook wiring in `RouterService`.
+
 ### Added — Inspector schema explorer (Phase 2)
 - `SchemaTree` component (apps/web/src/components/schema-tree.tsx) — renders JSON Schema properties as a tree with type, required marker, format, enum, description, and nested object/array.
 - `ToolExplorer` (client component) — search filter by tool name/description + raw JSON toggle. Auto-expands schemas when filtered ≤ 5.

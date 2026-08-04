@@ -21,6 +21,8 @@ import { RbacGuard } from "./rbac.guard.js";
 import { RateLimitInterceptor } from "./rate-limit.interceptor.js";
 import { SqlDispatcher } from "./sql-dispatcher.js";
 import { GraphqlDispatcher } from "./graphql-dispatcher.js";
+import { PluginModule } from "./plugin.module.js";
+import { PluginsController } from "./plugins.controller.js";
 
 @Module({
   imports: [
@@ -31,6 +33,7 @@ import { GraphqlDispatcher } from "./graphql-dispatcher.js";
     AuthModule,
     SessionModule,
     HealthModule,
+    PluginModule,
   ],
   controllers: [
     RouterController,
@@ -42,6 +45,7 @@ import { GraphqlDispatcher } from "./graphql-dispatcher.js";
     AuthController,
     LoginController,
     SseController,
+    PluginsController,
   ],
   providers: [
     RouterService,

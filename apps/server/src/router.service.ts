@@ -220,7 +220,7 @@ export class RouterService implements OnModuleInit {
     }
     const url = `${baseUrl.replace(/\/$/, "")}${path}${query.toString() ? `?${query}` : ""}`;
     const res = await request(url, {
-      method: meta.method,
+      method: meta.method as "GET" | "POST" | "PUT" | "DELETE" | "PATCH",
       headers: body !== undefined ? { "content-type": "application/json" } : undefined,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });

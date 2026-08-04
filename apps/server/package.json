@@ -18,13 +18,16 @@
     "@mavio/import-graphql": "workspace:*",
     "@mavio/import-openapi": "workspace:*",
     "@mavio/import-sql": "workspace:*",
+    "@mavio/plugin": "workspace:*",
     "@mavio/rbac": "workspace:*",
+    "@mavio/sdk": "workspace:*",
     "@mavio/registry": "workspace:*",
     "@mavio/transport": "workspace:*",
     "@nestjs/common": "^10.4.0",
     "@nestjs/core": "^10.4.0",
     "@nestjs/platform-express": "^10.4.0",
     "cookie": "^0.6.0",
+    "kysely": "^0.27.4",
     "openid-client": "^5.7.0",
     "pg": "^8.12.0",
     "reflect-metadata": "^0.2.2",
@@ -34,6 +37,7 @@
   "devDependencies": {
     "@types/cookie": "^0.6.0",
     "@types/express": "^4.17.21",
+    "@types/pg": "^8.11.10",
     "rimraf": "^5.0.5",
     "typescript": "^5.5.4"
   }
