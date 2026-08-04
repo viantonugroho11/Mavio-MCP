@@ -4,6 +4,15 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Added — GraphQL importer polish (Phase 3 sub-step 3b)
+- Introspection query pulls `inputFields`, `enumValues`, deprecation flags; `TypeRef` fragment expands `ofType` up to 5 levels.
+- JSON schema mapping fixed: `LIST` → `{ type: array, items: <inner> }`; `Int` → `integer`; `INPUT_OBJECT` expanded recursively (cycle-guarded, depth 3); `ENUM` → `{ type: string, enum: [...] }`.
+- Meta shape carries per-arg `gqlType` (from schema, not from arg value at dispatch) — Int/Float/Boolean args no longer stringified when building GraphQL variables.
+- Auto scalar+enum leaf selection for object return types, configurable depth (default 2, max 4), cycle-guarded. Skips fields requiring args to avoid invalid queries.
+- `dispatchGraphql` filters out undefined args before building variable definitions.
+- `importGraphql({ selectionDepth })` opt-in.
+- `router.service.ts` meta shape updated to match.
+
 ### Added — Plugin Manager + `@mavio/sdk` v1 (Phase 3 sub-step 3a)
 - **`@mavio/sdk`** new pkg: `PluginManifest`, `PluginContext`, `Importer` / `TransportAdapter` / `Middleware` / `AuthProvider` interfaces, `MAVIO_API_VERSION="1.0.0"` constant. Public surface for plugin authors.
 - **`@mavio/plugin`** new pkg: `PluginManager` with local `node_modules/@mavio-plugin/*` discovery, semver gate on `manifest.mavioApi` vs host `MAVIO_API_VERSION`, `loadAll` / `enable` / `disable` / `list`. In-memory registries for importers/transports/middleware/auth. `PluginStateStore` interface + `InMemoryStateStore` default.
