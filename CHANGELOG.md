@@ -4,6 +4,25 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Added — Deployment story (Phase 3 sub-step 3g)
+- `deploy/helm/mavio-mcp/` full Helm chart: Deployment / Service / Ingress / ConfigMap / Secret / ServiceAccount / ServiceMonitor. Prometheus scrape annotations by default; ServiceMonitor opt-in. Locked-down PodSecurityContext (non-root, read-only rootfs, drop-ALL caps).
+- `deploy/k8s/` raw manifest reference for Helm-less installs (+ README).
+- `deploy/docker/Dockerfile` multi-stage build (`pnpm -r build` → `pnpm deploy --prod`) producing a slim server-only runtime image.
+
+### Added — OpenTelemetry tracing (Phase 3 sub-step 3f)
+- `@mavio/observability` bootstrap: NodeSDK + BatchSpanProcessor + OTLP HTTP exporter, gated on `OTEL_EXPORTER_OTLP_ENDPOINT` (or console exporter via `MAVIO_OTEL_DEBUG=1`). No-op when neither set.
+- `withSpan()` helper (auto OK/ERROR status + exception record) + `injectTraceHeaders()` for outbound W3C traceparent propagation.
+- `main.ts` bootstraps SDK before Nest; graceful `SIGTERM`/`SIGINT` shutdown flushes spans.
+- `RouterService.callTool` wraps dispatch in a `SERVER`-kind span with `mavio.server.id / tool.name / transport.kind / principal.id` attributes.
+- OpenAPI + GraphQL dispatchers inject traceparent on upstream HTTP calls.
+
+### Added — Prometheus metrics (Phase 3 sub-step 3e)
+- `@mavio/observability` new pkg: `MavioMetrics` (prom-client Registry + `collectDefaultMetrics`).
+- Series: `mavio_router_requests_total{server,tool,outcome}`, `mavio_router_request_duration_seconds` (histogram), `mavio_breaker_state{server}` (0/1/2), `mavio_rate_limit_denied_total{server,scope}`, `mavio_upstream_errors_total{server,kind}`, `mavio_importer_runs_total{kind,outcome}`.
+- `GET /metrics` controller (Prom text exposition; `Cache-Control: no-store`).
+- `RouterService.callTool` labels every call by outcome (`ok|error|circuit_open`) and updates breaker gauge from `snapshot()` in `finally`.
+- `ImportsController.trackImport(kind, fn)` wraps each importer path.
+
 ### Added — MCP-mirror importer + resilience layer (Phase 3 sub-steps 3c + 3d)
 - **MCP-mirror importer** (`@mavio/import-mcp`): open transport (stdio/http/sse), send `initialize` + `tools/list`, snapshot tools and register as Mavio server. `POST /api/imports/mcp` guarded by `server:write`. CLI `mavio import mcp --id X --stdio|--http|--sse ... [--auth secret://ENV]`.
 - **Native MCP dispatch fix**: `dispatchNativeMcp` was omitting `params.name` — real MCP backends 400'd on `tools/call`. RouterService now threads `toolName` through `dispatchByKind`.
