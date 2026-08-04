@@ -16,6 +16,7 @@
     "@mavio/config": "workspace:*",
     "@mavio/core": "workspace:*",
     "@mavio/import-graphql": "workspace:*",
+    "@mavio/import-mcp": "workspace:*",
     "@mavio/import-openapi": "workspace:*",
     "@mavio/import-sql": "workspace:*",
     "@mavio/plugin": "workspace:*",

@@ -72,6 +72,9 @@ importers:
       '@mavio/import-graphql':
         specifier: workspace:*
         version: link:../../packages/import-graphql
+      '@mavio/import-mcp':
+        specifier: workspace:*
+        version: link:../../packages/import-mcp
       '@mavio/import-openapi':
         specifier: workspace:*
         version: link:../../packages/import-openapi
@@ -229,6 +232,22 @@ importers:
       undici:
         specifier: ^6.19.8
         version: 6.28.0
+    devDependencies:
+      rimraf:
+        specifier: ^5.0.5
+        version: 5.0.10
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+
+  packages/import-mcp:
+    dependencies:
+      '@mavio/core':
+        specifier: workspace:*
+        version: link:../core
+      '@mavio/transport':
+        specifier: workspace:*
+        version: link:../transport
     devDependencies:
       rimraf:
         specifier: ^5.0.5

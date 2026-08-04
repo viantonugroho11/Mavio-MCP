@@ -1,10 +1,13 @@
 import { Body, Controller, Inject, Post, UseGuards } from "@nestjs/common";
+import type { TransportDescriptor } from "@mavio/core";
 import { Actions } from "@mavio/rbac";
 import { Registry } from "@mavio/registry";
+import { TransportManager } from "@mavio/transport";
 import { buildBlueprint, loadOpenApi } from "@mavio/import-openapi";
 import { importPostgres } from "@mavio/import-sql";
 import { importGraphql } from "@mavio/import-graphql";
-import { REGISTRY } from "./registry.module.js";
+import { importMcp } from "@mavio/import-mcp";
+import { REGISTRY, TRANSPORT_MANAGER } from "./registry.module.js";
 import { ApiKeyGuard } from "./auth.guard.js";
 import { RbacGuard, RequirePermission } from "./rbac.guard.js";
 import { RouterService } from "./router.service.js";
@@ -38,11 +41,21 @@ interface ImportGraphqlBody {
   tags?: string[];
 }
 
+interface ImportMcpBody {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  name?: string;
+  transport: TransportDescriptor;
+  tags?: string[];
+}
+
 @Controller("api/imports")
 @UseGuards(ApiKeyGuard, RbacGuard)
 export class ImportsController {
   constructor(
     @Inject(REGISTRY) private readonly registry: Registry,
+    @Inject(TRANSPORT_MANAGER) private readonly transports: TransportManager,
     private readonly router: RouterService,
   ) {}
 
@@ -117,5 +130,28 @@ export class ImportsController {
     });
     await this.router.invalidate(body.id);
     return { ok: true, toolCount: blueprint.tools.length };
+  }
+
+  @Post("mcp")
+  @RequirePermission(Actions.ServerWrite)
+  async importMcpMirror(@Body() body: ImportMcpBody): Promise<{ ok: true; toolCount: number; serverName: string }> {
+    const blueprint = await importMcp({
+      transport: body.transport,
+      name: body.name,
+      transports: this.transports,
+    });
+    await this.registry.register({
+      id: body.id,
+      workspaceId: body.workspaceId,
+      projectId: body.projectId,
+      name: blueprint.serverName,
+      sourceType: "mcp",
+      transport: body.transport,
+      tags: body.tags,
+      version: blueprint.serverVersion,
+    });
+    await this.registry.snapshotCapabilities(body.id, blueprint.serverVersion, blueprint.capabilities);
+    await this.router.invalidate(body.id);
+    return { ok: true, toolCount: blueprint.tools.length, serverName: blueprint.serverName };
   }
 }

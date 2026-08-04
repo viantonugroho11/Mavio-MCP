@@ -2,6 +2,26 @@ import type { Command } from "commander";
 import kleur from "kleur";
 import { request } from "undici";
 
+interface TransportOpts {
+  stdio?: string;
+  http?: string;
+  sse?: string;
+  auth?: string;
+}
+
+function buildMcpTransport(opts: TransportOpts): Record<string, unknown> {
+  const auth = opts.auth ? { type: "bearer" as const, secretRef: opts.auth } : undefined;
+  if (opts.stdio) {
+    const parts = opts.stdio.split(/\s+/).filter(Boolean);
+    const [command, ...args] = parts;
+    if (!command) throw new Error("--stdio requires command");
+    return { type: "stdio", command, args };
+  }
+  if (opts.http) return { type: "http", baseUrl: opts.http, ...(auth ? { auth } : {}) };
+  if (opts.sse) return { type: "sse", url: opts.sse, ...(auth ? { auth } : {}) };
+  throw new Error("one of --stdio, --http, --sse is required");
+}
+
 export function registerImport(program: Command): void {
   const cmd = program.command("import").description("Import external sources as MCP servers");
 
@@ -66,6 +86,41 @@ export function registerImport(program: Command): void {
         process.exit(1);
       }
       console.log(kleur.green("✓"), `imported ${opts.id} — ${body.toolCount} tools`);
+    });
+
+  cmd
+    .command("mcp")
+    .description("Mirror an existing MCP server (stdio/http/sse) as a Mavio-managed server")
+    .requiredOption("--id <id>")
+    .option("--stdio <cmd>", "stdio command (space-separated argv)")
+    .option("--http <url>", "http transport baseUrl")
+    .option("--sse <url>", "sse transport url")
+    .option("--name <name>", "server display name")
+    .option("--auth <secretRef>", "bearer secret ref (e.g. secret://TOKEN_ENV)")
+    .option("--workspace <ws>", "workspace id", "default")
+    .option("--project <proj>", "project id", "sandbox")
+    .option("--api <url>", "Mavio admin API base URL", "http://localhost:4000")
+    .option("--key <key>", "admin API key")
+    .action(async (opts: Record<string, string | undefined>) => {
+      const key = opts.key ?? process.env.MAVIO_ADMIN_API_KEY ?? "";
+      const transport = buildMcpTransport(opts);
+      const res = await request(`${opts.api}/api/imports/mcp`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(key ? { authorization: `Bearer ${key}` } : {}) },
+        body: JSON.stringify({
+          id: opts.id,
+          workspaceId: opts.workspace,
+          projectId: opts.project,
+          name: opts.name,
+          transport,
+        }),
+      });
+      const body = (await res.body.json()) as { ok?: boolean; toolCount?: number; serverName?: string };
+      if (res.statusCode >= 400) {
+        console.error(kleur.red("import failed:"), body);
+        process.exit(1);
+      }
+      console.log(kleur.green("✓"), `mirrored ${opts.id} (${body.serverName}) — ${body.toolCount} tools`);
     });
 
   cmd

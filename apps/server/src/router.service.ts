@@ -149,7 +149,7 @@ export class RouterService implements OnModuleInit {
     const schema = tool.inputSchema as Record<string, unknown>;
 
     try {
-      const dispatched = await this.dispatchByKind(descriptor, schema, args);
+      const dispatched = await this.dispatchByKind(descriptor, toolName, schema, args);
       return {
         jsonrpc: "2.0",
         id: frame.id ?? null,
@@ -174,6 +174,7 @@ export class RouterService implements OnModuleInit {
 
   private async dispatchByKind(
     descriptor: ServerDescriptor,
+    toolName: string,
     schema: Record<string, unknown>,
     args: Record<string, unknown>,
   ): Promise<DispatchResult> {
@@ -204,7 +205,7 @@ export class RouterService implements OnModuleInit {
       };
       return { result, isError: Array.isArray(result.errors) && result.errors.length > 0 };
     }
-    return this.dispatchNativeMcp(descriptor, args, schema);
+    return this.dispatchNativeMcp(descriptor, toolName, args);
   }
 
   private async dispatchOpenApi(
@@ -237,8 +238,8 @@ export class RouterService implements OnModuleInit {
 
   private async dispatchNativeMcp(
     descriptor: ServerDescriptor,
+    toolName: string,
     args: Record<string, unknown>,
-    _schema: Record<string, unknown>,
   ): Promise<DispatchResult> {
     let session: Session | undefined;
     try {
@@ -247,7 +248,7 @@ export class RouterService implements OnModuleInit {
         jsonrpc: "2.0",
         id: Date.now(),
         method: "tools/call",
-        params: { arguments: args },
+        params: { name: toolName, arguments: args },
       };
       const response = await session.send(forwarded);
       return { result: response.result ?? response.error, isError: Boolean(response.error) };
