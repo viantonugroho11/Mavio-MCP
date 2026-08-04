@@ -116,6 +116,13 @@ export const MavioConfigSchema = z.object({
       rateLimit: z
         .object({ rpm: z.number(), burst: z.number() })
         .optional(),
+      circuitBreaker: z
+        .object({
+          failureThreshold: z.number().int().positive().default(5),
+          resetMs: z.number().int().positive().default(30_000),
+          halfOpenMaxCalls: z.number().int().positive().default(1),
+        })
+        .optional(),
     })
     .default({ endpoint: "/mcp" }),
 });

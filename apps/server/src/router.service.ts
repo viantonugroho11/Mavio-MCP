@@ -1,14 +1,16 @@
 import { Inject, Injectable, type OnModuleInit } from "@nestjs/common";
 import type { MCPFrame, Principal, ServerCapabilities, ServerDescriptor, ToolDefinition } from "@mavio/core";
-import { NotFoundError } from "@mavio/core";
+import { CircuitBreaker, CircuitOpenError, NotFoundError } from "@mavio/core";
 import { Actions, type PolicyEngine } from "@mavio/rbac";
 import { Registry } from "@mavio/registry";
 import { TransportManager, type Session } from "@mavio/transport";
 import { CapabilityCache, InvalidationBus } from "@mavio/cache";
+import type { MavioConfig } from "@mavio/config";
 import { request } from "undici";
 import { REGISTRY, TRANSPORT_MANAGER } from "./registry.module.js";
 import { CAPABILITY_CACHE, INVALIDATION_BUS } from "./cache.module.js";
 import { POLICY_ENGINE } from "./rbac.module.js";
+import { MAVIO_CONFIG } from "./config.module.js";
 import { SqlDispatcher } from "./sql-dispatcher.js";
 import { GraphqlDispatcher } from "./graphql-dispatcher.js";
 
@@ -19,15 +21,20 @@ interface DispatchResult {
 
 @Injectable()
 export class RouterService implements OnModuleInit {
+  private readonly breaker: CircuitBreaker;
+
   constructor(
     @Inject(REGISTRY) private readonly registry: Registry,
     @Inject(TRANSPORT_MANAGER) private readonly transports: TransportManager,
     @Inject(CAPABILITY_CACHE) private readonly cache: CapabilityCache,
     @Inject(INVALIDATION_BUS) private readonly bus: InvalidationBus,
     @Inject(POLICY_ENGINE) private readonly policy: PolicyEngine,
+    @Inject(MAVIO_CONFIG) config: MavioConfig,
     private readonly sql: SqlDispatcher,
     private readonly graphql: GraphqlDispatcher,
-  ) {}
+  ) {
+    this.breaker = new CircuitBreaker(config.router.circuitBreaker ?? {});
+  }
 
   onModuleInit(): void {
     this.bus.onEvent((event) => {
@@ -149,7 +156,9 @@ export class RouterService implements OnModuleInit {
     const schema = tool.inputSchema as Record<string, unknown>;
 
     try {
-      const dispatched = await this.dispatchByKind(descriptor, toolName, schema, args);
+      const dispatched = await this.breaker.execute(serverId, () =>
+        this.dispatchByKind(descriptor, toolName, schema, args),
+      );
       return {
         jsonrpc: "2.0",
         id: frame.id ?? null,
@@ -167,6 +176,9 @@ export class RouterService implements OnModuleInit {
         },
       };
     } catch (err) {
+      if (err instanceof CircuitOpenError) {
+        return errorFrame(frame.id, -32010, err.message);
+      }
       const message = err instanceof Error ? err.message : String(err);
       return errorFrame(frame.id, -32000, `dispatch failed: ${message}`);
     }

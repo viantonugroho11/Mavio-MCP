@@ -122,3 +122,107 @@ export class ForbiddenError extends MavioError {
     super(reason, "FORBIDDEN");
   }
 }
+
+export class CircuitOpenError extends MavioError {
+  constructor(key: string, public readonly retryAt: number) {
+    super(`circuit open for ${key}, retry at ${new Date(retryAt).toISOString()}`, "CIRCUIT_OPEN");
+  }
+}
+
+export type CircuitState = "closed" | "open" | "half_open";
+
+export interface CircuitBreakerOptions {
+  failureThreshold?: number;
+  resetMs?: number;
+  halfOpenMaxCalls?: number;
+  now?: () => number;
+}
+
+interface CircuitEntry {
+  state: CircuitState;
+  failures: number;
+  successes: number;
+  openedAt: number;
+  halfOpenInFlight: number;
+}
+
+export class CircuitBreaker {
+  private readonly entries = new Map<string, CircuitEntry>();
+  private readonly failureThreshold: number;
+  private readonly resetMs: number;
+  private readonly halfOpenMaxCalls: number;
+  private readonly now: () => number;
+
+  constructor(opts: CircuitBreakerOptions = {}) {
+    this.failureThreshold = opts.failureThreshold ?? 5;
+    this.resetMs = opts.resetMs ?? 30_000;
+    this.halfOpenMaxCalls = opts.halfOpenMaxCalls ?? 1;
+    this.now = opts.now ?? (() => Date.now());
+  }
+
+  async execute<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const entry = this.entryFor(key);
+    if (entry.state === "open") {
+      const elapsed = this.now() - entry.openedAt;
+      if (elapsed < this.resetMs) {
+        throw new CircuitOpenError(key, entry.openedAt + this.resetMs);
+      }
+      entry.state = "half_open";
+      entry.halfOpenInFlight = 0;
+      entry.successes = 0;
+    }
+    if (entry.state === "half_open" && entry.halfOpenInFlight >= this.halfOpenMaxCalls) {
+      throw new CircuitOpenError(key, entry.openedAt + this.resetMs);
+    }
+    if (entry.state === "half_open") entry.halfOpenInFlight++;
+    try {
+      const result = await fn();
+      this.onSuccess(entry);
+      return result;
+    } catch (err) {
+      this.onFailure(entry);
+      throw err;
+    }
+  }
+
+  snapshot(key: string): CircuitState {
+    return this.entries.get(key)?.state ?? "closed";
+  }
+
+  private entryFor(key: string): CircuitEntry {
+    let entry = this.entries.get(key);
+    if (!entry) {
+      entry = { state: "closed", failures: 0, successes: 0, openedAt: 0, halfOpenInFlight: 0 };
+      this.entries.set(key, entry);
+    }
+    return entry;
+  }
+
+  private onSuccess(entry: CircuitEntry): void {
+    if (entry.state === "half_open") {
+      entry.successes++;
+      entry.halfOpenInFlight = Math.max(0, entry.halfOpenInFlight - 1);
+      if (entry.successes >= this.halfOpenMaxCalls) {
+        entry.state = "closed";
+        entry.failures = 0;
+        entry.successes = 0;
+      }
+      return;
+    }
+    entry.failures = 0;
+  }
+
+  private onFailure(entry: CircuitEntry): void {
+    if (entry.state === "half_open") {
+      entry.state = "open";
+      entry.openedAt = this.now();
+      entry.halfOpenInFlight = 0;
+      return;
+    }
+    entry.failures++;
+    if (entry.failures >= this.failureThreshold) {
+      entry.state = "open";
+      entry.openedAt = this.now();
+    }
+  }
+}
