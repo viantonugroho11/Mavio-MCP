@@ -23,6 +23,8 @@ import { SqlDispatcher } from "./sql-dispatcher.js";
 import { GraphqlDispatcher } from "./graphql-dispatcher.js";
 import { PluginModule } from "./plugin.module.js";
 import { PluginsController } from "./plugins.controller.js";
+import { ObservabilityModule } from "./observability.module.js";
+import { MetricsController } from "./metrics.controller.js";
 
 @Module({
   imports: [
@@ -34,6 +36,7 @@ import { PluginsController } from "./plugins.controller.js";
     SessionModule,
     HealthModule,
     PluginModule,
+    ObservabilityModule,
   ],
   controllers: [
     RouterController,
@@ -46,6 +49,7 @@ import { PluginsController } from "./plugins.controller.js";
     LoginController,
     SseController,
     PluginsController,
+    MetricsController,
   ],
   providers: [
     RouterService,

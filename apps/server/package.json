@@ -19,6 +19,7 @@
     "@mavio/import-mcp": "workspace:*",
     "@mavio/import-openapi": "workspace:*",
     "@mavio/import-sql": "workspace:*",
+    "@mavio/observability": "workspace:*",
     "@mavio/plugin": "workspace:*",
     "@mavio/rbac": "workspace:*",
     "@mavio/sdk": "workspace:*",

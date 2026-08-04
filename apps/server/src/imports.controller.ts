@@ -7,10 +7,12 @@ import { buildBlueprint, loadOpenApi } from "@mavio/import-openapi";
 import { importPostgres } from "@mavio/import-sql";
 import { importGraphql } from "@mavio/import-graphql";
 import { importMcp } from "@mavio/import-mcp";
+import { MavioMetrics } from "@mavio/observability";
 import { REGISTRY, TRANSPORT_MANAGER } from "./registry.module.js";
 import { ApiKeyGuard } from "./auth.guard.js";
 import { RbacGuard, RequirePermission } from "./rbac.guard.js";
 import { RouterService } from "./router.service.js";
+import { METRICS } from "./observability.module.js";
 
 interface ImportOpenApiBody {
   id: string;
@@ -56,35 +58,50 @@ export class ImportsController {
   constructor(
     @Inject(REGISTRY) private readonly registry: Registry,
     @Inject(TRANSPORT_MANAGER) private readonly transports: TransportManager,
+    @Inject(METRICS) private readonly metrics: MavioMetrics,
     private readonly router: RouterService,
   ) {}
+
+  private async trackImport<T>(kind: string, fn: () => Promise<T>): Promise<T> {
+    try {
+      const out = await fn();
+      this.metrics.importerRuns.inc({ kind, outcome: "ok" });
+      return out;
+    } catch (err) {
+      this.metrics.importerRuns.inc({ kind, outcome: "error" });
+      throw err;
+    }
+  }
 
   @Post("openapi")
   @RequirePermission(Actions.ServerWrite)
   async importOpenapi(@Body() body: ImportOpenApiBody): Promise<{ ok: true; toolCount: number }> {
-    const doc = await loadOpenApi({ url: body.url, path: body.path });
-    const blueprint = buildBlueprint(doc, body.baseUrl);
-    await this.registry.register({
-      id: body.id,
-      workspaceId: body.workspaceId,
-      projectId: body.projectId,
-      name: blueprint.serverName,
-      sourceType: "openapi",
-      transport: { type: "http", baseUrl: blueprint.baseUrl },
-      tags: body.tags,
-      version: blueprint.serverVersion,
+    return this.trackImport("openapi", async () => {
+      const doc = await loadOpenApi({ url: body.url, path: body.path });
+      const blueprint = buildBlueprint(doc, body.baseUrl);
+      await this.registry.register({
+        id: body.id,
+        workspaceId: body.workspaceId,
+        projectId: body.projectId,
+        name: blueprint.serverName,
+        sourceType: "openapi",
+        transport: { type: "http", baseUrl: blueprint.baseUrl },
+        tags: body.tags,
+        version: blueprint.serverVersion,
+      });
+      await this.registry.snapshotCapabilities(body.id, blueprint.serverVersion, {
+        tools: blueprint.tools,
+        serverInfo: { name: blueprint.serverName, version: blueprint.serverVersion },
+      });
+      await this.router.invalidate(body.id);
+      return { ok: true as const, toolCount: blueprint.tools.length };
     });
-    await this.registry.snapshotCapabilities(body.id, blueprint.serverVersion, {
-      tools: blueprint.tools,
-      serverInfo: { name: blueprint.serverName, version: blueprint.serverVersion },
-    });
-    await this.router.invalidate(body.id);
-    return { ok: true, toolCount: blueprint.tools.length };
   }
 
   @Post("sql")
   @RequirePermission(Actions.ServerWrite)
   async importSql(@Body() body: ImportSqlBody): Promise<{ ok: true; toolCount: number; tables: string[] }> {
+    return this.trackImport("sql", async () => {
     const blueprint = await importPostgres({ dsn: body.dsn, allowedTables: body.allowedTables });
     await this.registry.register({
       id: body.id,
@@ -107,12 +124,14 @@ export class ImportsController {
       serverInfo: { name: blueprint.serverName, version: blueprint.serverVersion },
     });
     await this.router.invalidate(body.id);
-    return { ok: true, toolCount: blueprint.tools.length, tables: blueprint.allowedTables };
+    return { ok: true as const, toolCount: blueprint.tools.length, tables: blueprint.allowedTables };
+    });
   }
 
   @Post("graphql")
   @RequirePermission(Actions.ServerWrite)
   async importGraphql(@Body() body: ImportGraphqlBody): Promise<{ ok: true; toolCount: number }> {
+    return this.trackImport("graphql", async () => {
     const blueprint = await importGraphql({ endpoint: body.endpoint, headers: body.headers });
     await this.registry.register({
       id: body.id,
@@ -129,12 +148,14 @@ export class ImportsController {
       serverInfo: { name: blueprint.serverName, version: blueprint.serverVersion },
     });
     await this.router.invalidate(body.id);
-    return { ok: true, toolCount: blueprint.tools.length };
+    return { ok: true as const, toolCount: blueprint.tools.length };
+    });
   }
 
   @Post("mcp")
   @RequirePermission(Actions.ServerWrite)
   async importMcpMirror(@Body() body: ImportMcpBody): Promise<{ ok: true; toolCount: number; serverName: string }> {
+    return this.trackImport("mcp", async () => {
     const blueprint = await importMcp({
       transport: body.transport,
       name: body.name,
@@ -152,6 +173,7 @@ export class ImportsController {
     });
     await this.registry.snapshotCapabilities(body.id, blueprint.serverVersion, blueprint.capabilities);
     await this.router.invalidate(body.id);
-    return { ok: true, toolCount: blueprint.tools.length, serverName: blueprint.serverName };
+    return { ok: true as const, toolCount: blueprint.tools.length, serverName: blueprint.serverName };
+    });
   }
 }

@@ -6,11 +6,13 @@ import { Registry } from "@mavio/registry";
 import { TransportManager, type Session } from "@mavio/transport";
 import { CapabilityCache, InvalidationBus, RateLimiter, type Redis } from "@mavio/cache";
 import type { MavioConfig } from "@mavio/config";
+import { BREAKER_STATE_VALUE, MavioMetrics } from "@mavio/observability";
 import { request } from "undici";
 import { REGISTRY, TRANSPORT_MANAGER } from "./registry.module.js";
 import { CAPABILITY_CACHE, INVALIDATION_BUS, REDIS } from "./cache.module.js";
 import { POLICY_ENGINE } from "./rbac.module.js";
 import { MAVIO_CONFIG } from "./config.module.js";
+import { METRICS } from "./observability.module.js";
 import { SqlDispatcher } from "./sql-dispatcher.js";
 import { GraphqlDispatcher } from "./graphql-dispatcher.js";
 
@@ -32,6 +34,7 @@ export class RouterService implements OnModuleInit {
     @Inject(POLICY_ENGINE) private readonly policy: PolicyEngine,
     @Inject(MAVIO_CONFIG) config: MavioConfig,
     @Inject(REDIS) redis: Redis,
+    @Inject(METRICS) private readonly metrics: MavioMetrics,
     private readonly sql: SqlDispatcher,
     private readonly graphql: GraphqlDispatcher,
   ) {
@@ -165,14 +168,21 @@ export class RouterService implements OnModuleInit {
       const scope = principal ? `${serverId}:${principal.id}` : `${serverId}:anon`;
       const result = await this.limiter.check(scope, perServerRpm, 60);
       if (!result.allowed) {
+        this.metrics.rateLimitDenied.inc({ server: serverId, scope });
         return errorFrame(frame.id, -32011, `server rate limit exceeded (resetAt=${result.resetAt})`);
       }
     }
 
+    const started = process.hrtime.bigint();
+    let outcome: "ok" | "error" | "circuit_open" = "ok";
     try {
       const dispatched = await this.breaker.execute(serverId, () =>
         this.dispatchByKind(descriptor, toolName, schema, args),
       );
+      outcome = dispatched.isError ? "error" : "ok";
+      if (dispatched.isError) {
+        this.metrics.upstreamErrors.inc({ server: serverId, kind: descriptor.transport.type });
+      }
       return {
         jsonrpc: "2.0",
         id: frame.id ?? null,
@@ -190,11 +200,22 @@ export class RouterService implements OnModuleInit {
         },
       };
     } catch (err) {
+      this.metrics.upstreamErrors.inc({ server: serverId, kind: descriptor.transport.type });
       if (err instanceof CircuitOpenError) {
+        outcome = "circuit_open";
         return errorFrame(frame.id, -32010, err.message);
       }
+      outcome = "error";
       const message = err instanceof Error ? err.message : String(err);
       return errorFrame(frame.id, -32000, `dispatch failed: ${message}`);
+    } finally {
+      const seconds = Number(process.hrtime.bigint() - started) / 1e9;
+      this.metrics.routerRequests.inc({ server: serverId, tool: toolName, outcome });
+      this.metrics.routerDuration.observe({ server: serverId, tool: toolName, outcome }, seconds);
+      this.metrics.breakerState.set(
+        { server: serverId },
+        BREAKER_STATE_VALUE[this.breaker.snapshot(serverId)],
+      );
     }
   }
 
