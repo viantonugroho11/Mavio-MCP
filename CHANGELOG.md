@@ -4,6 +4,13 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Added — MCP-mirror importer + resilience layer (Phase 3 sub-steps 3c + 3d)
+- **MCP-mirror importer** (`@mavio/import-mcp`): open transport (stdio/http/sse), send `initialize` + `tools/list`, snapshot tools and register as Mavio server. `POST /api/imports/mcp` guarded by `server:write`. CLI `mavio import mcp --id X --stdio|--http|--sse ... [--auth secret://ENV]`.
+- **Native MCP dispatch fix**: `dispatchNativeMcp` was omitting `params.name` — real MCP backends 400'd on `tools/call`. RouterService now threads `toolName` through `dispatchByKind`.
+- **Circuit breaker** (`@mavio/core CircuitBreaker`): per-server closed/open/half_open state machine. RouterService wraps every `dispatchByKind` call keyed by serverId. Open state returns JSON-RPC error `-32010` with retry-at instead of hammering the backend. Config: `router.circuitBreaker.{failureThreshold=5, resetMs=30000, halfOpenMaxCalls=1}`.
+- **Per-server rate limit**: Redis-backed `RateLimiter` on router-level; keyed by `serverId+principal.id`, driven by `descriptor.metadata.rateLimitRpm` (60s bucket, RPM). JSON-RPC error `-32011` when exceeded. Router-global HTTP interceptor unchanged.
+- **Centralized broker auth** (`bearerHeaderFromAuth` in `@mavio/core`): dedups `secret://X → env X` logic previously triplicated across http/sse/graphql. Same wire behavior, one source.
+
 ### Added — GraphQL importer polish (Phase 3 sub-step 3b)
 - Introspection query pulls `inputFields`, `enumValues`, deprecation flags; `TypeRef` fragment expands `ofType` up to 5 levels.
 - JSON schema mapping fixed: `LIST` → `{ type: array, items: <inner> }`; `Int` → `integer`; `INPUT_OBJECT` expanded recursively (cycle-guarded, depth 3); `ENUM` → `{ type: string, enum: [...] }`.
