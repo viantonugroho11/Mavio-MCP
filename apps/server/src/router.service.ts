@@ -21,6 +21,7 @@ import { MAVIO_CONFIG } from "./config.module.js";
 import { METRICS } from "./observability.module.js";
 import { SqlDispatcher } from "./sql-dispatcher.js";
 import { GraphqlDispatcher } from "./graphql-dispatcher.js";
+import { AuditService } from "./audit.module.js";
 
 interface DispatchResult {
   result: unknown;
@@ -43,6 +44,7 @@ export class RouterService implements OnModuleInit {
     @Inject(METRICS) private readonly metrics: MavioMetrics,
     private readonly sql: SqlDispatcher,
     private readonly graphql: GraphqlDispatcher,
+    private readonly audit: AuditService,
   ) {
     this.breaker = new CircuitBreaker(config.router.circuitBreaker ?? {});
     this.limiter = new RateLimiter(redis);
@@ -235,6 +237,14 @@ export class RouterService implements OnModuleInit {
         { server: serverId },
         BREAKER_STATE_VALUE[this.breaker.snapshot(serverId)],
       );
+      this.audit.log({
+        actorId: principal?.id ?? null,
+        actorType: principal?.type ?? null,
+        action: "tool.invoke",
+        resource: { server: serverId, tool: toolName },
+        outcome: outcome === "ok" ? "ok" : outcome === "circuit_open" ? "error" : "error",
+        metadata: { outcome, durationMs: Math.round(seconds * 1000) },
+      });
     }
   }
 

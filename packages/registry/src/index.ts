@@ -21,6 +21,12 @@ export {
   type OidcProviderInput,
 } from "./oidc-repo.js";
 export { PluginRepository, type PluginRecord } from "./plugin-repo.js";
+export {
+  AuditRepository,
+  type AuditLogInput,
+  type AuditLogRecord,
+  type AuditLogFilter,
+} from "./audit-repo.js";
 
 export interface RegisterInput extends Omit<ServerDescriptor, "version"> {
   version?: string;

@@ -1,6 +1,6 @@
 {
   "name": "mavio-mcp",
-  "version": "0.1.0-mvp",
+  "version": "0.2.0",
   "private": true,
   "description": "All-in-one developer toolkit for the Model Context Protocol ecosystem",
   "license": "Apache-2.0",
@@ -21,6 +21,7 @@
     "@types/node": "^20.14.0",
     "rimraf": "^5.0.5",
     "turbo": "^2.1.0",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.0"
   }
 }

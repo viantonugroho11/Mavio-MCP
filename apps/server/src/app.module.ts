@@ -25,6 +25,9 @@ import { PluginModule } from "./plugin.module.js";
 import { PluginsController } from "./plugins.controller.js";
 import { ObservabilityModule } from "./observability.module.js";
 import { MetricsController } from "./metrics.controller.js";
+import { AuditModule } from "./audit.module.js";
+import { AuditController } from "./audit.controller.js";
+import { SseSessionRegistry } from "./sse.registry.js";
 
 @Module({
   imports: [
@@ -37,6 +40,7 @@ import { MetricsController } from "./metrics.controller.js";
     HealthModule,
     PluginModule,
     ObservabilityModule,
+    AuditModule,
   ],
   controllers: [
     RouterController,
@@ -50,6 +54,7 @@ import { MetricsController } from "./metrics.controller.js";
     SseController,
     PluginsController,
     MetricsController,
+    AuditController,
   ],
   providers: [
     RouterService,
@@ -59,6 +64,7 @@ import { MetricsController } from "./metrics.controller.js";
     SqlDispatcher,
     GraphqlDispatcher,
     HealthProber,
+    SseSessionRegistry,
   ],
 })
 export class AppModule {}

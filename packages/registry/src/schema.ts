@@ -85,6 +85,18 @@ export interface PluginsTable {
   updated_at: Generated<Date>;
 }
 
+export interface AuditLogsTable {
+  id: Generated<string>;
+  at: Generated<Date>;
+  actor_id: string | null;
+  actor_type: string | null;
+  action: string;
+  resource: unknown;
+  outcome: string;
+  metadata: unknown;
+  ip: string | null;
+}
+
 export interface Database {
   servers: ServersTable;
   capability_snapshots: CapabilitySnapshotsTable;
@@ -94,4 +106,5 @@ export interface Database {
   playground_runs: PlaygroundRunsTable;
   oidc_providers: OidcProvidersTable;
   plugins: PluginsTable;
+  audit_logs: AuditLogsTable;
 }

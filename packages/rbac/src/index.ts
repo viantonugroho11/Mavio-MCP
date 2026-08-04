@@ -11,6 +11,7 @@ export const Actions = {
   ToolInvoke: "tool:invoke",
   PluginInstall: "plugin:install",
   ConfigWrite: "config:write",
+  AuditRead: "audit:read",
 } as const;
 export type Action = (typeof Actions)[keyof typeof Actions];
 

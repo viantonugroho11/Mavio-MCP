@@ -2,16 +2,20 @@ import { Controller, Get, Inject, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 import type { InvalidationBus, InvalidationEvent } from "@mavio/cache";
 import { INVALIDATION_BUS } from "./cache.module.js";
+import { SseSessionRegistry } from "./sse.registry.js";
 
 /**
- * Downstream SSE stream for MCP clients — emits capability-invalidation events
- * so clients can call `tools/list` again without polling. Streamable per-call
- * tool responses (correlated by frame.id) are TODO — needs response-fanout on
- * RouterService.
+ * Downstream SSE for MCP clients.
+ * - Emits capability-invalidation notifications so clients can refetch tools/list.
+ * - Provides a sid via the `endpoint` frame; POST /mcp?sid=<sid> replies are fanned
+ *   back onto this stream as `event: message` frames (classic MCP HTTP+SSE).
  */
 @Controller()
 export class SseController {
-  constructor(@Inject(INVALIDATION_BUS) private readonly bus: InvalidationBus) {}
+  constructor(
+    @Inject(INVALIDATION_BUS) private readonly bus: InvalidationBus,
+    private readonly registry: SseSessionRegistry,
+  ) {}
 
   @Get("mcp/sse")
   stream(@Req() req: Request, @Res() res: Response): void {
@@ -20,8 +24,8 @@ export class SseController {
     res.setHeader("connection", "keep-alive");
     res.flushHeaders?.();
 
-    // Endpoint hint for classic MCP SSE clients: where to POST frames.
-    res.write(`event: endpoint\ndata: /mcp\n\n`);
+    const sid = this.registry.register(res);
+    res.write(`event: endpoint\ndata: /mcp?sid=${sid}\n\n`);
 
     const send = (event: string, data: unknown): void => {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -43,6 +47,7 @@ export class SseController {
     req.on("close", () => {
       clearInterval(ping);
       unsubscribe();
+      this.registry.unregister(sid);
     });
   }
 }

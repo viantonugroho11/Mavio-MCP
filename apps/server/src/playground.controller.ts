@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Inject, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
-import type { Request } from "express";
+import { Body, Controller, Get, Inject, NotFoundException, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
+import type { Request, Response } from "express";
 import type { Principal } from "@mavio/core";
 import { Actions } from "@mavio/rbac";
 import { PlaygroundRepository } from "@mavio/registry";
@@ -58,9 +58,63 @@ export class PlaygroundController {
     return this.repo.list({ serverId: server });
   }
 
+  @Get("runs/export")
+  @RequirePermission(Actions.ServerRead)
+  async export(
+    @Res() res: Response,
+    @Query("server") server?: string,
+    @Query("format") format?: string,
+    @Query("limit") limit?: string,
+  ): Promise<void> {
+    const runs = await this.repo.list({
+      serverId: server,
+      limit: limit ? Math.min(Number(limit), 1000) : 500,
+    });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    if (format === "ndjson") {
+      res.setHeader("content-type", "application/x-ndjson");
+      res.setHeader("content-disposition", `attachment; filename="playground-runs-${stamp}.ndjson"`);
+      for (const r of runs) res.write(`${JSON.stringify(r)}\n`);
+      res.end();
+      return;
+    }
+    res.setHeader("content-type", "application/json");
+    res.setHeader("content-disposition", `attachment; filename="playground-runs-${stamp}.json"`);
+    res.end(JSON.stringify(runs, null, 2));
+  }
+
   @Get("runs/:id")
   @RequirePermission(Actions.ServerRead)
   async get(@Param("id") id: string): Promise<unknown> {
     return this.repo.get(id);
+  }
+
+  @Post("runs/:id/replay")
+  @RequirePermission(Actions.ToolInvoke)
+  async replay(
+    @Param("id") id: string,
+    @Req() req: Request & { principal?: Principal },
+  ): Promise<{ runId: string; latencyMs: number; response: unknown; replayedFrom: string }> {
+    const original = await this.repo.get(id);
+    if (!original) throw new NotFoundException(`run ${id} not found`);
+    const args = (original.arguments ?? {}) as Record<string, unknown>;
+    const started = Date.now();
+    const frame = await this.router.invokeAndReturn(
+      `${original.serverId}.${original.toolName}`,
+      args,
+      req.principal,
+    );
+    const latencyMs = Date.now() - started;
+    const isError = Boolean(frame.error);
+    const run = await this.repo.record({
+      principalId: req.principal?.id ?? "unknown",
+      serverId: original.serverId,
+      toolName: original.toolName,
+      arguments: args,
+      response: frame,
+      latencyMs,
+      status: isError ? "error" : "ok",
+    });
+    return { runId: run.id, latencyMs, response: frame, replayedFrom: id };
   }
 }

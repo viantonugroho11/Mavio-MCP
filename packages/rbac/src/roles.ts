@@ -17,6 +17,7 @@ export const BUILTIN_ROLES: Role[] = [
       { action: Actions.ServerAdmin, scope: {}, effect: "allow" },
       { action: Actions.ToolInvoke, scope: {}, effect: "allow" },
       { action: Actions.ConfigWrite, scope: {}, effect: "allow" },
+      { action: Actions.AuditRead, scope: {}, effect: "allow" },
     ],
   },
   {

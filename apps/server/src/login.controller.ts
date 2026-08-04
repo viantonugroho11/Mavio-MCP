@@ -9,6 +9,7 @@ import { OidcClientCache } from "./oidc-client.cache.js";
 import { SessionStore } from "./session.store.js";
 import { OIDC_CLIENT_CACHE, SESSION_STORE, SESSION_TTL } from "./session.module.js";
 import { RBAC_REPO } from "./rbac.module.js";
+import { AuditService, clientIp } from "./audit.module.js";
 
 const COOKIE_NAME = "mavio_sid";
 
@@ -19,6 +20,7 @@ export class LoginController {
     @Inject(SESSION_STORE) private readonly sessions: SessionStore,
     @Inject(SESSION_TTL) private readonly ttlSeconds: number,
     @Inject(RBAC_REPO) private readonly rbac: RbacRepository,
+    private readonly audit: AuditService,
   ) {}
 
   @Get(":providerId/login")
@@ -124,6 +126,15 @@ export class LoginController {
       email,
       displayName,
     });
+    this.audit.log({
+      actorId: principalId,
+      actorType: "user",
+      action: "auth.login",
+      resource: { providerId },
+      outcome: "ok",
+      metadata: { created, email },
+      ip: clientIp(req),
+    });
 
     res.setHeader(
       "set-cookie",
@@ -141,7 +152,19 @@ export class LoginController {
   @Post("logout")
   async logout(@Req() req: Request, @Res() res: Response): Promise<void> {
     const sid = readSidCookie(req);
-    if (sid) await this.sessions.destroy(sid);
+    let principalId: string | null = null;
+    if (sid) {
+      const data = await this.sessions.read(sid);
+      principalId = data?.principalId ?? null;
+      await this.sessions.destroy(sid);
+    }
+    this.audit.log({
+      actorId: principalId,
+      actorType: principalId ? "user" : null,
+      action: "auth.logout",
+      outcome: "ok",
+      ip: clientIp(req),
+    });
     res.setHeader(
       "set-cookie",
       serializeCookie(COOKIE_NAME, "", {

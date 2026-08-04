@@ -147,6 +147,35 @@ async function main(): Promise<void> {
     );
   `.execute(db);
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      at          timestamptz NOT NULL DEFAULT now(),
+      actor_id    text,
+      actor_type  text,
+      action      text NOT NULL,
+      resource    jsonb NOT NULL DEFAULT '{}'::jsonb,
+      outcome     text NOT NULL,
+      metadata    jsonb NOT NULL DEFAULT '{}'::jsonb,
+      ip          text
+    );
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS audit_logs_at_idx
+      ON audit_logs (at DESC);
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS audit_logs_actor_idx
+      ON audit_logs (actor_id, at DESC);
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS audit_logs_action_idx
+      ON audit_logs (action, at DESC);
+  `.execute(db);
+
   await db.destroy();
   console.log("migrations applied");
 }

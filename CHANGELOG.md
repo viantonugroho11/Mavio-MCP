@@ -4,6 +4,30 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-04
+
+Phase 2 (Enterprise) + Phase 3 (Extensibility & Ops) complete. Rolls up: OIDC + Redis session, web login UI, RBAC 4-scope engine, SSE transport (with per-call fanout), Inspector schema explorer, playground replay/export, audit logs, test suite (29 tests) — plus Phase 3 Plugin Manager/SDK, GraphQL polish, MCP-mirror importer, circuit breaker + per-server rate limit, Prometheus metrics, OpenTelemetry tracing, Helm chart + K8s manifests + Dockerfile.
+
+### Added — Test suite (Phase 2)
+- Vitest added to root + `@mavio/core`, `@mavio/rbac`, `@mavio/registry`, `@mavio/server`.
+- Coverage: `CircuitBreaker` state machine (5 tests), `bearerHeaderFromAuth` + `resolveSecretRef` (7), `BuiltinRbacEngine` allow/deny/scope/wildcard/inheritance (7), `diffCapabilities` added/removed/changed/unchanged (5), `clientIp` header/ip/socket fallbacks (5). 29 tests, `pnpm test` runs all via turbo.
+
+### Added — Audit logs (Phase 2)
+- `audit_logs` table (`id uuid`, `at`, `actor_id`, `actor_type`, `action`, `resource jsonb`, `outcome`, `metadata jsonb`, `ip`) + indexes on `at`, `actor_id`, `action`. Migration in `packages/registry/src/migrate.ts`.
+- `AuditRepository` (`@mavio/registry`): `record()` + `list({ actorId, action, outcome, since, limit })` — hard cap 500.
+- `AuditModule` (Global) + `AuditService` — fire-and-forget writes (`.log()`), `clientIp()` helper extracting `x-forwarded-for` / `req.ip`.
+- Hooks wired: `LoginController.callback` (`auth.login`, includes `created` flag + email), `LoginController.logout` (`auth.logout`), `RbacGuard` (`rbac.deny` with `required` action + `reason`), `RouterService.callTool` (`tool.invoke` in finally, `outcome`/`durationMs`).
+- `GET /api/audit?actor=&action=&outcome=&since=&limit=` guarded by new `Actions.AuditRead` (added to `admin` builtin role).
+
+### Added — Playground replay + export (Phase 2)
+- `POST /api/playground/runs/:id/replay` — fetches original run, re-invokes tool with stored args, records new run, returns `{ runId, latencyMs, response, replayedFrom }`. Guarded by `tool:invoke`.
+- `GET /api/playground/runs/export?server=&format=json|ndjson&limit=` — attachment download; NDJSON streams line-per-run, JSON returns pretty-printed array. Limit capped at 1000.
+
+### Added — SSE per-call response fanout (Phase 2)
+- `SseSessionRegistry` — per-connection `sid → Response` map; `send(sid, frame)` writes `event: message` SSE frame.
+- `GET /mcp/sse` now allocates a `sid` and emits `event: endpoint\ndata: /mcp?sid=<sid>` so classic MCP clients POST correlated frames back to the same stream.
+- `POST /mcp?sid=<sid>` — when sid matches a live SSE session, response frame is delivered over SSE and HTTP responds `202`; otherwise HTTP-JSON behavior unchanged.
+
 ### Added — Deployment story (Phase 3 sub-step 3g)
 - `deploy/helm/mavio-mcp/` full Helm chart: Deployment / Service / Ingress / ConfigMap / Secret / ServiceAccount / ServiceMonitor. Prometheus scrape annotations by default; ServiceMonitor opt-in. Locked-down PodSecurityContext (non-root, read-only rootfs, drop-ALL caps).
 - `deploy/k8s/` raw manifest reference for Helm-less installs (+ README).
