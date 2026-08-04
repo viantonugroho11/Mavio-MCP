@@ -1,0 +1,10 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mavio-mcp
+  labels: { app.kubernetes.io/name: mavio-mcp }
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: mavio-mcp }
+  endpoints:
+    - { port: http, path: /metrics, interval: 30s }

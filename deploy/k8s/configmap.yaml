@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mavio-mcp-config
+  labels: { app.kubernetes.io/name: mavio-mcp }
+data:
+  mavio.config.yaml: |
+    version: 1
+    mavio: { dataDir: /data }
+    database: { url: ${MAVIO_DB_URL} }
+    cache:    { url: ${MAVIO_REDIS_URL} }
+    auth:
+      providers:
+        - { type: apiKey, id: default }
+    workspaces:
+      - id: default
+        name: Default
+        projects: [{ id: sandbox, name: Sandbox }]
+    servers: []
+    router:
+      endpoint: /mcp
+      rateLimit: { rpm: 600, burst: 60 }
+      circuitBreaker: { failureThreshold: 5, resetMs: 30000, halfOpenMaxCalls: 1 }

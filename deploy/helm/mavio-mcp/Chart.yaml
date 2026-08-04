@@ -1,0 +1,13 @@
+apiVersion: v2
+name: mavio-mcp
+description: Mavio-MCP gateway (router + admin API + web console)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.24.0-0"
+keywords:
+  - mcp
+  - gateway
+  - model-context-protocol
+sources:
+  - https://github.com/viantonugroho11/Mavio-MCP
