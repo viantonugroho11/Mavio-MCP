@@ -94,6 +94,28 @@ export interface MCPFrame {
   error?: { code: number; message: string; data?: unknown };
 }
 
+export interface SecretResolver {
+  resolve(ref: string): string | undefined;
+}
+
+export function resolveSecretRef(
+  ref: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  if (!ref) return undefined;
+  const name = ref.replace(/^secret:\/\//, "").toUpperCase();
+  return env[name];
+}
+
+export function bearerHeaderFromAuth(
+  auth: { type: "bearer"; secretRef: string } | { type: "none" } | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): Record<string, string> {
+  if (!auth || auth.type !== "bearer") return {};
+  const value = resolveSecretRef(auth.secretRef, env);
+  return value ? { authorization: `Bearer ${value}` } : {};
+}
+
 export class MavioError extends Error {
   constructor(
     message: string,

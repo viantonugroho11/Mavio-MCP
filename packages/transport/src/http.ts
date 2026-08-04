@@ -1,6 +1,6 @@
 import { request } from "undici";
 import type { MCPFrame, TransportDescriptor } from "@mavio/core";
-import { MavioError } from "@mavio/core";
+import { bearerHeaderFromAuth, MavioError } from "@mavio/core";
 import type { Session, Transport } from "./index.js";
 
 class HttpSession implements Session {
@@ -37,13 +37,10 @@ export class HttpTransport implements Transport {
     if (descriptor.type !== "http") {
       throw new MavioError("wrong descriptor for http transport", "TRANSPORT_MISMATCH");
     }
-    const headers: Record<string, string> = { ...(descriptor.headers ?? {}) };
-    if (descriptor.auth?.type === "bearer") {
-      // secretRef resolution deferred to SecretProvider — MVP: read env var by name
-      const envName = descriptor.auth.secretRef.replace(/^secret:\/\//, "").toUpperCase();
-      const value = process.env[envName];
-      if (value) headers["authorization"] = `Bearer ${value}`;
-    }
+    const headers: Record<string, string> = {
+      ...(descriptor.headers ?? {}),
+      ...bearerHeaderFromAuth(descriptor.auth),
+    };
     return new HttpSession(descriptor.baseUrl, headers);
   }
 }

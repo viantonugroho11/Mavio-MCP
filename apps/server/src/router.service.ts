@@ -4,11 +4,11 @@ import { CircuitBreaker, CircuitOpenError, NotFoundError } from "@mavio/core";
 import { Actions, type PolicyEngine } from "@mavio/rbac";
 import { Registry } from "@mavio/registry";
 import { TransportManager, type Session } from "@mavio/transport";
-import { CapabilityCache, InvalidationBus } from "@mavio/cache";
+import { CapabilityCache, InvalidationBus, RateLimiter, type Redis } from "@mavio/cache";
 import type { MavioConfig } from "@mavio/config";
 import { request } from "undici";
 import { REGISTRY, TRANSPORT_MANAGER } from "./registry.module.js";
-import { CAPABILITY_CACHE, INVALIDATION_BUS } from "./cache.module.js";
+import { CAPABILITY_CACHE, INVALIDATION_BUS, REDIS } from "./cache.module.js";
 import { POLICY_ENGINE } from "./rbac.module.js";
 import { MAVIO_CONFIG } from "./config.module.js";
 import { SqlDispatcher } from "./sql-dispatcher.js";
@@ -22,6 +22,7 @@ interface DispatchResult {
 @Injectable()
 export class RouterService implements OnModuleInit {
   private readonly breaker: CircuitBreaker;
+  private readonly limiter: RateLimiter;
 
   constructor(
     @Inject(REGISTRY) private readonly registry: Registry,
@@ -30,10 +31,12 @@ export class RouterService implements OnModuleInit {
     @Inject(INVALIDATION_BUS) private readonly bus: InvalidationBus,
     @Inject(POLICY_ENGINE) private readonly policy: PolicyEngine,
     @Inject(MAVIO_CONFIG) config: MavioConfig,
+    @Inject(REDIS) redis: Redis,
     private readonly sql: SqlDispatcher,
     private readonly graphql: GraphqlDispatcher,
   ) {
     this.breaker = new CircuitBreaker(config.router.circuitBreaker ?? {});
+    this.limiter = new RateLimiter(redis);
   }
 
   onModuleInit(): void {
@@ -154,6 +157,17 @@ export class RouterService implements OnModuleInit {
     const tool = caps?.tools?.find((t) => t.name === toolName);
     if (!tool) return errorFrame(frame.id, -32001, `tool ${fqName} not found`);
     const schema = tool.inputSchema as Record<string, unknown>;
+
+    const perServerRpm = Number(
+      (descriptor.metadata as { rateLimitRpm?: number } | undefined)?.rateLimitRpm ?? 0,
+    );
+    if (perServerRpm > 0) {
+      const scope = principal ? `${serverId}:${principal.id}` : `${serverId}:anon`;
+      const result = await this.limiter.check(scope, perServerRpm, 60);
+      if (!result.allowed) {
+        return errorFrame(frame.id, -32011, `server rate limit exceeded (resetAt=${result.resetAt})`);
+      }
+    }
 
     try {
       const dispatched = await this.breaker.execute(serverId, () =>
