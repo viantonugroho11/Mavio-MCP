@@ -4,6 +4,16 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Added — Consent controller + subject-token resolver (Phase 5 sub-step 5.1g)
+- `UpstreamAuthController` on `GET /auth/upstream/:providerId/login` + `GET /auth/upstream/:providerId/callback`:
+  - Login endpoint requires a live Mavio session cookie (401 if missing) — you must be logged into Mavio before authorizing an upstream app.
+  - State is prefixed with the principal id + timestamp so the callback (unauthenticated per OAuth spec) can bind the exchanged credential to the right user. State stored in the Redis-backed `SessionStore` under `mavio:oidc:state:` (reuses existing infra) with a 10-minute TTL.
+  - Non-interactive providers (token-exchange) skip the redirect — the login endpoint calls `provider.mint()` directly and returns to `return_to`.
+  - Callback exchanges the code + persists the credential in the vault, then 302s back to `return_to`. Audit events `upstream.token.issue` fire on both success and failure.
+- Subject-token resolver rewired in `upstream-auth.module.ts` to read from the vault under a synthetic provider id (`MAVIO_TOKENX_SUBJECT_PROVIDER_ID`, default `mavio-session`). Token-exchange providers now get real subject tokens without needing an extra Mavio-side plumbing hook.
+- `LoginController.callback` persists the IdP `access_token` / `refresh_token` / `expires_at` from the OIDC token set into the vault under the `mavio-session` provider id. Any subsequent RFC 8693 mint on this principal exchanges that stored subject token for a downstream audience-restricted token — this is what makes Keycloak SSO and KrakenD JWT-forward "just work" once a user has logged into Mavio.
+- Module wiring cleanup: `PrincipalUpstreamCredentialsRepository` is now its own DI-injectable provider (`UPSTREAM_CREDS_REPO`) so both `UpstreamTokenService` and the new controller share one repo — one vault instance, one KEK.
+
 ### Added — Per-principal upstream OAuth vault + injection (Phase 5 sub-steps 5.1a–5.1f, ADR-018 + ADR-019)
 - New pkg `@mavio/upstream-auth` — envelope-encrypted Postgres vault keyed by `(principal_id, provider_id)`. AES-256-GCM per row, DEK wrapped by KEK selected from an ordered keyring (`MAVIO_VAULT_KEYRING="v3:<b64>,v2:<b64>,...`). Vault supports lazy rewrap under the current primary key on next touch.
 - Three built-in `UpstreamCredentialProvider` implementations:

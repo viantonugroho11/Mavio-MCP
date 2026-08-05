@@ -19,6 +19,7 @@ import { REGISTRY_DB } from "./registry.module.js";
 
 export const UPSTREAM_PROVIDERS = Symbol("UPSTREAM_PROVIDERS");
 export const UPSTREAM_TOKEN_SERVICE = Symbol("UPSTREAM_TOKEN_SERVICE");
+export const UPSTREAM_CREDS_REPO = Symbol("UPSTREAM_CREDS_REPO");
 
 /**
  * In-memory registry of upstream credential providers. Populated at boot
@@ -176,14 +177,41 @@ export function applyInjection(
   return { ...descriptor, transport };
 }
 
+/**
+ * Reads the subject token to feed into a token-exchange grant. Looks up the
+ * upstream IdP access token that Mavio persisted at OIDC login time under the
+ * configured session provider id (MAVIO_TOKENX_SUBJECT_PROVIDER_ID, default
+ * "mavio-session"). Non-existence returns null → provider throws → middleware
+ * returns consent_required.
+ */
+function makeSubjectResolver(
+  repo: PrincipalUpstreamCredentialsRepository,
+): SubjectTokenResolver {
+  const providerId = process.env.MAVIO_TOKENX_SUBJECT_PROVIDER_ID ?? "mavio-session";
+  return async ({ principalId }) => {
+    const stored = await repo.get(principalId, providerId);
+    if (!stored) return null;
+    return { token: stored.accessToken, tokenType: stored.tokenType };
+  };
+}
+
 @Global()
 @Module({
   providers: [
     {
+      provide: UPSTREAM_CREDS_REPO,
+      inject: [REGISTRY_DB],
+      useFactory: (db: Kysely<Database>): PrincipalUpstreamCredentialsRepository => {
+        const kek = new EnvKekProvider();
+        const vault = new Vault(kek);
+        return new PrincipalUpstreamCredentialsRepository(db, vault);
+      },
+    },
+    {
       provide: UPSTREAM_PROVIDERS,
-      useFactory: (): UpstreamProviderRegistry => {
+      inject: [UPSTREAM_CREDS_REPO],
+      useFactory: (repo: PrincipalUpstreamCredentialsRepository): UpstreamProviderRegistry => {
         const registry = new UpstreamProviderRegistry();
-        // Builtin Slack provider (env-configured).
         if (process.env.MAVIO_SLACK_CLIENT_ID && process.env.MAVIO_SLACK_CLIENT_SECRET) {
           registry.register(
             new SlackUserProvider({
@@ -195,9 +223,7 @@ export function applyInjection(
             }),
           );
         }
-        // Keycloak / KrakenD token-exchange (env-configured).
         if (process.env.MAVIO_TOKENX_ENDPOINT && process.env.MAVIO_TOKENX_AUDIENCE) {
-          const resolver: SubjectTokenResolver = async () => null;
           registry.register(
             new TokenExchangeProvider({
               id: process.env.MAVIO_TOKENX_ID ?? "keycloak",
@@ -206,7 +232,7 @@ export function applyInjection(
               clientSecret: process.env.MAVIO_TOKENX_CLIENT_SECRET,
               audience: process.env.MAVIO_TOKENX_AUDIENCE,
               resource: process.env.MAVIO_TOKENX_RESOURCE,
-              subjectTokenResolver: resolver,
+              subjectTokenResolver: makeSubjectResolver(repo),
             }),
           );
         }
@@ -215,19 +241,14 @@ export function applyInjection(
     },
     {
       provide: UPSTREAM_TOKEN_SERVICE,
-      inject: [UPSTREAM_PROVIDERS, REGISTRY_DB],
+      inject: [UPSTREAM_PROVIDERS, UPSTREAM_CREDS_REPO],
       useFactory: (
         registry: UpstreamProviderRegistry,
-        db: Kysely<Database>,
-      ): UpstreamTokenService => {
-        const kek = new EnvKekProvider();
-        const vault = new Vault(kek);
-        const repo = new PrincipalUpstreamCredentialsRepository(db, vault);
-        return new UpstreamTokenService(registry, repo);
-      },
+        repo: PrincipalUpstreamCredentialsRepository,
+      ): UpstreamTokenService => new UpstreamTokenService(registry, repo),
     },
   ],
-  exports: [UPSTREAM_PROVIDERS, UPSTREAM_TOKEN_SERVICE],
+  exports: [UPSTREAM_PROVIDERS, UPSTREAM_TOKEN_SERVICE, UPSTREAM_CREDS_REPO],
 })
 export class UpstreamAuthModule implements OnModuleInit {
   onModuleInit(): void {

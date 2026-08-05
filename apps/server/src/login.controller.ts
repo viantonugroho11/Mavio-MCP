@@ -10,6 +10,8 @@ import { SessionStore } from "./session.store.js";
 import { OIDC_CLIENT_CACHE, SESSION_STORE, SESSION_TTL } from "./session.module.js";
 import { RBAC_REPO } from "./rbac.module.js";
 import { AuditService, clientIp } from "./audit.module.js";
+import type { PrincipalUpstreamCredentialsRepository } from "@mavio/upstream-auth";
+import { UPSTREAM_CREDS_REPO } from "./upstream-auth.module.js";
 
 const COOKIE_NAME = "mavio_sid";
 
@@ -20,6 +22,8 @@ export class LoginController {
     @Inject(SESSION_STORE) private readonly sessions: SessionStore,
     @Inject(SESSION_TTL) private readonly ttlSeconds: number,
     @Inject(RBAC_REPO) private readonly rbac: RbacRepository,
+    @Inject(UPSTREAM_CREDS_REPO)
+    private readonly upstreamRepo: PrincipalUpstreamCredentialsRepository,
     private readonly audit: AuditService,
   ) {}
 
@@ -126,6 +130,36 @@ export class LoginController {
       email,
       displayName,
     });
+
+    // Capture the IdP access + refresh tokens so token-exchange providers
+    // (Keycloak, KrakenD) can mint audience-restricted downstream tokens on
+    // behalf of this user. Stored under a fixed synthetic provider id so the
+    // subject-token resolver finds it regardless of which OIDC provider the
+    // user picked.
+    if (tokenSet.access_token) {
+      const subjectProviderId =
+        process.env.MAVIO_TOKENX_SUBJECT_PROVIDER_ID ?? "mavio-session";
+      try {
+        await this.upstreamRepo.put({
+          principalId,
+          providerId: subjectProviderId,
+          accessToken: tokenSet.access_token,
+          refreshToken: tokenSet.refresh_token,
+          tokenType: tokenSet.token_type ?? "Bearer",
+          scopes: provider.scopes,
+          expiresAt: tokenSet.expires_at
+            ? new Date(tokenSet.expires_at * 1000)
+            : undefined,
+          issuer: provider.issuerUrl,
+          subject: claims.sub,
+        });
+      } catch (err) {
+        console.warn(
+          `[oidc] failed to persist IdP subject token for ${principalId}:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
     this.audit.log({
       actorId: principalId,
       actorType: "user",

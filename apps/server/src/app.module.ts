@@ -31,6 +31,7 @@ import { SseSessionRegistry } from "./sse.registry.js";
 import { ExternalRegistryModule } from "./external-registry.module.js";
 import { MarketplaceController } from "./marketplace.controller.js";
 import { UpstreamAuthModule } from "./upstream-auth.module.js";
+import { UpstreamAuthController } from "./upstream-auth.controller.js";
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { UpstreamAuthModule } from "./upstream-auth.module.js";
     MetricsController,
     AuditController,
     MarketplaceController,
+    UpstreamAuthController,
   ],
   providers: [
     RouterService,
