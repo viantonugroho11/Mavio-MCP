@@ -4,6 +4,7 @@ import type { Principal } from "@mavio/core";
 import { UnauthorizedError } from "@mavio/core";
 import type { RbacRepository } from "@mavio/registry";
 import type { SessionStore } from "./session.store.js";
+import { mtlsPrincipal, trustedHeaderPrincipal } from "./federated-auth.js";
 
 export interface ResolveOptions {
   strict?: boolean;
@@ -17,6 +18,10 @@ export async function resolvePrincipalFromRequest(
   rbac: RbacRepository,
   opts: ResolveOptions = {},
 ): Promise<Principal | undefined> {
+  // 0. Federated identity — trusted proxy header or direct mTLS peer cert.
+  const federated = trustedHeaderPrincipal(req) ?? mtlsPrincipal(req);
+  if (federated) return federated;
+
   // 1. Session cookie (web console).
   if (opts.sessions) {
     const cookieHeader = req.headers.cookie;
