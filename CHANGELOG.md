@@ -4,6 +4,18 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Added — Per-principal upstream OAuth vault + injection (Phase 5 sub-steps 5.1a–5.1f, ADR-018 + ADR-019)
+- New pkg `@mavio/upstream-auth` — envelope-encrypted Postgres vault keyed by `(principal_id, provider_id)`. AES-256-GCM per row, DEK wrapped by KEK selected from an ordered keyring (`MAVIO_VAULT_KEYRING="v3:<b64>,v2:<b64>,...`). Vault supports lazy rewrap under the current primary key on next touch.
+- Three built-in `UpstreamCredentialProvider` implementations:
+  - `Oauth2PkceProvider` — generic RFC 7636 auth-code + PKCE flow with in-memory state store (PkceStateStore pluggable for multi-node).
+  - `SlackUserProvider` — Slack OAuth v2 `user_scope` flow (`xoxp-…` user tokens). Parses `authed_user.access_token` from response; falls back to top-level bot-only shape. Injects `SLACK_BOT_TOKEN=<xoxp>` on stdio env — the community `@modelcontextprotocol/server-slack` reads that variable and Slack Web API accepts user tokens where bot tokens work.
+  - `TokenExchangeProvider` — RFC 8693 token-exchange for Keycloak SSO + KrakenD-style audience-restricted downstream tokens. No browser round-trip; `mint()` produces a downstream token from the caller's existing Mavio session's subject token.
+- `UpstreamTokenService` in `apps/server/src/upstream-auth.module.ts` — hooked into `RouterService.callTool` **before** the circuit breaker. Looks up the credential for `(principal.id, descriptor.metadata.upstreamOAuthProvider)`, refreshes when within 60s of expiry (or re-mints for token-exchange providers), and injects env/header into a cloned `ServerDescriptor` (never mutates the cached one).
+- Missing credential → JSON-RPC error `-32020` `upstream consent required` with `data.providerId` + `data.consentUrl` so the web console can redirect the user through the provider's OAuth flow. Non-interactive providers (`TokenExchangeProvider`) mint automatically without ever surfacing `-32020`.
+- Migration adds `principal_upstream_credentials` table with envelope columns (`key_id, wrapped_dek, iv, auth_tag, ciphertext`), scopes, expiry, issuer + subject metadata, unique on `(principal_id, provider_id)`. Includes indexes on `expires_at` and `key_id` for the ADR-019 retire gate.
+- Vitest coverage across the new work: 13 vault + keyring tests, 9 PKCE tests, 6 Slack tests, 8 token-exchange tests, 5 `applyInjection` tests — 41 new tests total, all green.
+- Two ADRs landed: `ADR-018` (Proposed) — per-principal upstream OAuth vault + injection middleware. `ADR-019` (Proposed) — envelope-encryption keyring with downtime-free rotation, KMS-optional. Both under `docs/architecture/adr/`.
+
 ## [1.0.0] — 2026-08-05
 
 Phase 4 (Scale & Polish) complete. This is the v1.0 GA — end of the architecture-doc scope. Rolls up: WebSocket transport (client + `/mcp/ws` gateway), external registry sources (etcd + Consul with Postgres mirror sync), OPA + Cedar policy engines, SAML + mTLS via trusted-proxy header resolver + native mTLS peer-cert resolver, region-namespaced capability cache + router region filter, and a signed plugin marketplace client + admin API.

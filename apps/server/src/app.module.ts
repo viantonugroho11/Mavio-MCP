@@ -30,6 +30,7 @@ import { AuditController } from "./audit.controller.js";
 import { SseSessionRegistry } from "./sse.registry.js";
 import { ExternalRegistryModule } from "./external-registry.module.js";
 import { MarketplaceController } from "./marketplace.controller.js";
+import { UpstreamAuthModule } from "./upstream-auth.module.js";
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { MarketplaceController } from "./marketplace.controller.js";
     ObservabilityModule,
     AuditModule,
     ExternalRegistryModule,
+    UpstreamAuthModule,
   ],
   controllers: [
     RouterController,

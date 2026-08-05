@@ -22,6 +22,11 @@ import { METRICS } from "./observability.module.js";
 import { SqlDispatcher } from "./sql-dispatcher.js";
 import { GraphqlDispatcher } from "./graphql-dispatcher.js";
 import { AuditService } from "./audit.module.js";
+import {
+  applyInjection,
+  UPSTREAM_TOKEN_SERVICE,
+  UpstreamTokenService,
+} from "./upstream-auth.module.js";
 
 interface DispatchResult {
   result: unknown;
@@ -45,6 +50,7 @@ export class RouterService implements OnModuleInit {
     private readonly sql: SqlDispatcher,
     private readonly graphql: GraphqlDispatcher,
     private readonly audit: AuditService,
+    @Inject(UPSTREAM_TOKEN_SERVICE) private readonly upstream: UpstreamTokenService,
   ) {
     this.breaker = new CircuitBreaker(config.router.circuitBreaker ?? {});
     this.limiter = new RateLimiter(redis);
@@ -188,6 +194,22 @@ export class RouterService implements OnModuleInit {
         this.metrics.rateLimitDenied.inc({ server: serverId, scope });
         return errorFrame(frame.id, -32011, `server rate limit exceeded (resetAt=${result.resetAt})`);
       }
+    }
+
+    const upstream = await this.upstream.resolveForDispatch(principal, descriptor);
+    if (upstream.kind === "consent_required") {
+      return {
+        jsonrpc: "2.0",
+        id: frame.id ?? null,
+        error: {
+          code: -32020,
+          message: `upstream consent required: ${upstream.providerId}`,
+          data: { providerId: upstream.providerId, consentUrl: upstream.consentUrl },
+        },
+      };
+    }
+    if (upstream.kind === "ready") {
+      descriptor = applyInjection(descriptor, upstream.injection);
     }
 
     const started = process.hrtime.bigint();
