@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: { return_to?: string };
+  searchParams: Promise<{ return_to?: string }>;
 }): Promise<JSX.Element> {
   let providers: Awaited<ReturnType<typeof listAuthProviders>> = [];
   let error: string | null = null;
@@ -14,7 +14,8 @@ export default async function LoginPage({
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
-  const returnTo = searchParams.return_to ?? "/";
+  const { return_to } = await searchParams;
+  const returnTo = return_to ?? "/";
 
   return (
     <main className="max-w-md mx-auto px-6 py-16">
