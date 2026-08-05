@@ -12,3 +12,8 @@ export {
   type PkceStateStore,
 } from "./providers/pkce.js";
 export { SlackUserProvider, type SlackUserProviderConfig } from "./providers/slack-user.js";
+export {
+  TokenExchangeProvider,
+  type TokenExchangeConfig,
+  type SubjectTokenResolver,
+} from "./providers/token-exchange.js";
