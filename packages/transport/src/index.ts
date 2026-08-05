@@ -3,6 +3,7 @@ import { MavioError } from "@mavio/core";
 import { StdioTransport } from "./stdio.js";
 import { HttpTransport } from "./http.js";
 import { SseTransport } from "./sse.js";
+import { WsTransport } from "./ws.js";
 
 export interface Session {
   send(frame: MCPFrame): Promise<MCPFrame>;
@@ -21,6 +22,7 @@ export class TransportManager {
     this.register(new StdioTransport());
     this.register(new HttpTransport());
     this.register(new SseTransport());
+    this.register(new WsTransport());
   }
 
   register(transport: Transport): void {
@@ -42,3 +44,4 @@ export class TransportManager {
 export { StdioTransport } from "./stdio.js";
 export { HttpTransport } from "./http.js";
 export { SseTransport } from "./sse.js";
+export { WsTransport } from "./ws.js";

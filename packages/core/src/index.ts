@@ -41,10 +41,19 @@ export interface GraphqlTransportDescriptor {
   auth?: { type: "bearer"; secretRef: string } | { type: "none" };
 }
 
+export interface WsTransportDescriptor {
+  type: "ws";
+  url: string;
+  headers?: Record<string, string>;
+  auth?: { type: "bearer"; secretRef: string } | { type: "none" };
+  subprotocol?: string;
+}
+
 export type TransportDescriptor =
   | StdioTransportDescriptor
   | HttpTransportDescriptor
   | SseTransportDescriptor
+  | WsTransportDescriptor
   | SqlTransportDescriptor
   | GraphqlTransportDescriptor;
 
