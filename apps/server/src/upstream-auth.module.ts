@@ -15,7 +15,9 @@ import {
 } from "@mavio/upstream-auth";
 import type { Kysely } from "kysely";
 import type { Database } from "@mavio/registry";
+import type { MavioMetrics } from "@mavio/observability";
 import { REGISTRY_DB } from "./registry.module.js";
+import { METRICS } from "./observability.module.js";
 
 export const UPSTREAM_PROVIDERS = Symbol("UPSTREAM_PROVIDERS");
 export const UPSTREAM_TOKEN_SERVICE = Symbol("UPSTREAM_TOKEN_SERVICE");
@@ -51,6 +53,7 @@ export class UpstreamTokenService {
   constructor(
     private readonly registry: UpstreamProviderRegistry,
     private readonly repo: PrincipalUpstreamCredentialsRepository,
+    private readonly metrics: MavioMetrics,
   ) {}
 
   async resolveForDispatch(
@@ -61,11 +64,13 @@ export class UpstreamTokenService {
       ?.upstreamOAuthProvider;
     if (!providerId) return { kind: "skip" };
     if (!principal) {
+      this.metrics.upstreamTokenDenied.inc({ provider: providerId, reason: "no_principal" });
       return { kind: "consent_required", providerId, consentUrl: null };
     }
 
     const provider = this.registry.get(providerId);
     if (!provider) {
+      this.metrics.upstreamTokenDenied.inc({ provider: providerId, reason: "unknown_provider" });
       return { kind: "consent_required", providerId, consentUrl: null };
     }
 
@@ -73,13 +78,13 @@ export class UpstreamTokenService {
     let cred: UpstreamCredential | null = existing;
 
     if (!cred) {
-      // No credential yet. If the provider does non-interactive mint (token
-      // exchange), attempt it. Otherwise, tell the caller to consent.
       if (provider.mint) {
         try {
           cred = await provider.mint({ principalId: principal.id });
           await this.persist(principal.id, providerId, cred);
+          this.metrics.upstreamTokenRefresh.inc({ provider: providerId, outcome: "minted" });
         } catch {
+          this.metrics.upstreamTokenDenied.inc({ provider: providerId, reason: "mint_failed" });
           return {
             kind: "consent_required",
             providerId,
@@ -87,6 +92,7 @@ export class UpstreamTokenService {
           };
         }
       } else {
+        this.metrics.upstreamTokenDenied.inc({ provider: providerId, reason: "no_credential" });
         return {
           kind: "consent_required",
           providerId,
@@ -98,8 +104,10 @@ export class UpstreamTokenService {
         const refreshed = await provider.refresh(cred);
         await this.persist(principal.id, providerId, refreshed);
         cred = refreshed;
+        this.metrics.upstreamTokenRefresh.inc({ provider: providerId, outcome: "refreshed" });
       } catch {
-        // Refresh failed — user must reconsent.
+        this.metrics.upstreamTokenRefresh.inc({ provider: providerId, outcome: "failed" });
+        this.metrics.upstreamTokenDenied.inc({ provider: providerId, reason: "refresh_failed" });
         await this.repo.revoke(principal.id, providerId);
         return {
           kind: "consent_required",
@@ -241,11 +249,12 @@ function makeSubjectResolver(
     },
     {
       provide: UPSTREAM_TOKEN_SERVICE,
-      inject: [UPSTREAM_PROVIDERS, UPSTREAM_CREDS_REPO],
+      inject: [UPSTREAM_PROVIDERS, UPSTREAM_CREDS_REPO, METRICS],
       useFactory: (
         registry: UpstreamProviderRegistry,
         repo: PrincipalUpstreamCredentialsRepository,
-      ): UpstreamTokenService => new UpstreamTokenService(registry, repo),
+        metrics: MavioMetrics,
+      ): UpstreamTokenService => new UpstreamTokenService(registry, repo, metrics),
     },
   ],
   exports: [UPSTREAM_PROVIDERS, UPSTREAM_TOKEN_SERVICE, UPSTREAM_CREDS_REPO],

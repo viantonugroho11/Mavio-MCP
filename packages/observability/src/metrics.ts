@@ -14,6 +14,9 @@ export class MavioMetrics {
   readonly rateLimitDenied: Counter<string>;
   readonly importerRuns: Counter<string>;
   readonly upstreamErrors: Counter<string>;
+  readonly upstreamTokenRefresh: Counter<string>;
+  readonly upstreamTokenDenied: Counter<string>;
+  readonly vaultDecryptFail: Counter<string>;
 
   constructor(prefix = "mavio_") {
     this.registry = new Registry();
@@ -59,6 +62,27 @@ export class MavioMetrics {
       name: `${prefix}upstream_errors_total`,
       help: "Errors dispatching to upstream servers",
       labelNames: ["server", "kind"] as const,
+      registers: [this.registry],
+    });
+
+    this.upstreamTokenRefresh = new Counter({
+      name: `${prefix}upstream_token_refresh_total`,
+      help: "Per-principal upstream token refresh attempts",
+      labelNames: ["provider", "outcome"] as const,
+      registers: [this.registry],
+    });
+
+    this.upstreamTokenDenied = new Counter({
+      name: `${prefix}upstream_token_denied_total`,
+      help: "Requests that could not proceed because no valid upstream token was available",
+      labelNames: ["provider", "reason"] as const,
+      registers: [this.registry],
+    });
+
+    this.vaultDecryptFail = new Counter({
+      name: `${prefix}vault_decrypt_fail_total`,
+      help: "Vault decrypt failures (retired key, tampered ciphertext, corrupt row)",
+      labelNames: ["reason"] as const,
       registers: [this.registry],
     });
   }

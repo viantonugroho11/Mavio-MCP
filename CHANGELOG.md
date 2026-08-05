@@ -4,6 +4,16 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-08-05
+
+Phase 5.1 complete. Per-principal upstream OAuth vault + injection middleware — Mavio can now call Slack as Alice, Notion as Alice, and Keycloak-fronted / KrakenD-fronted backends as Alice, all from one MCP endpoint on one Mavio session. All env-gated — existing v1.0 deployments upgrade with zero behavior change until the relevant `MAVIO_*` variables are set.
+
+### Added — Prometheus metrics + docs + admin surface (Phase 5 sub-steps 5.1h + 5.1i)
+- New Prom counters: `mavio_upstream_token_refresh_total{provider,outcome=minted|refreshed|failed}`, `mavio_upstream_token_denied_total{provider,reason=no_principal|unknown_provider|no_credential|mint_failed|refresh_failed}`, `mavio_vault_decrypt_fail_total{reason}` — wired into `UpstreamTokenService.resolveForDispatch`.
+- New admin endpoints under `/api/rbac/principals/:id/upstream-tokens` (all `workspace:admin`-guarded): `GET` metadata-only list, `DELETE :providerId` best-effort remote revoke + local delete, `POST :providerId/reconsent` clears + returns fresh consentUrl.
+- New CLI: `mavio upstream list|revoke|reconsent`.
+- New docs: [docs/UPSTREAM_AUTH.md](docs/UPSTREAM_AUTH.md) — concepts, env-var setup, user flows for both Slack (per-user xoxp) and Keycloak (RFC 8693 token-exchange with zero interactive consent), admin ops, key rotation runbook, metrics + audit reference, threat model summary, deferred-work list.
+
 ### Added — Consent controller + subject-token resolver (Phase 5 sub-step 5.1g)
 - `UpstreamAuthController` on `GET /auth/upstream/:providerId/login` + `GET /auth/upstream/:providerId/callback`:
   - Login endpoint requires a live Mavio session cookie (401 if missing) — you must be logged into Mavio before authorizing an upstream app.
