@@ -136,15 +136,51 @@ All three endpoints require `workspace:admin`.
 
 ## Key rotation (ADR-019)
 
-Rotate the KEK without downtime:
+Two paths depending on the KEK backend.
 
-1. Generate a new 32-byte key: `openssl rand -base64 32`.
-2. Prepend to `MAVIO_VAULT_KEYRING`: `v2:<new>,v1:<old>`.
-3. Restart / hot-reload — `v2` becomes primary. Existing rows encrypted under `v1` decrypt normally; any row touched (read, refresh, put) is lazily re-wrapped under `v2` on next write.
-4. Monitor `mavio_vault_rows_by_key{key_id="v1"}` — retire `v1` once it hits zero.
-5. `POST /api/admin/vault/retire` (planned) — safe removal, gated on empty metric.
+### Local keyring (`MAVIO_VAULT_KEYRING`)
 
-Lazy rewrap means no bulk migration and no downtime. A background sweep is optional if compliance requires a hard deadline for full rewrap.
+Zero-downtime rotation via the admin API:
+
+```bash
+NEW=$(openssl rand -base64 32)
+
+# 1. Prepend the new primary + hot-reload replicas via mavio:vault:keyring:reload
+curl -X POST -H "authorization: Bearer $KEY" \
+  -H "content-type: application/json" \
+  -d "{\"keyId\":\"v2\",\"material\":\"$NEW\"}" \
+  https://mcp.example.com/api/admin/vault/rotate
+
+# 2. Watch old-key row count drop as touches lazily rewrap
+curl -s -H "authorization: Bearer $KEY" \
+  https://mcp.example.com/api/admin/vault/status | jq
+
+# 3. (Optional) accelerate with the background sweep
+export MAVIO_VAULT_REWRAP_ENABLED=1
+export MAVIO_VAULT_REWRAP_BATCH=500
+
+# 4. Retire once mavio_vault_rows_by_key{key_id="v1"}=0
+curl -X POST -H "authorization: Bearer $KEY" \
+  -H "content-type: application/json" \
+  -d '{"keyId":"v1"}' \
+  https://mcp.example.com/api/admin/vault/retire
+```
+
+The rotate call also updates the in-memory keyring; add the new entry to `MAVIO_VAULT_KEYRING` in your config-map / secret so replica restarts don't lose it.
+
+### Vault Transit backend
+
+Set `MAVIO_VAULT_KEK=vault-transit` + Vault credentials. Rotate via Vault CLI:
+
+```bash
+vault write -f transit/keys/mavio/rotate
+```
+
+Vault handles versioning; Mavio's `key_id` column carries `vault-transit:mavio:vN` so retire logic still works per version. The Mavio admin `/rotate` endpoint is a no-op for this backend — use Vault's own control plane.
+
+### KMS plugins (deferred to Phase 5.2 marketplace)
+
+`AwsKmsKeyWrapper` / `GcpKmsKeyWrapper` — implement `KeyWrapper` and ship as `@mavio-plugin/kek-*`. Same interface; the marketplace client's signature verification (see [FEATURES.md](FEATURES.md)) protects the install.
 
 ## Metrics
 
@@ -174,8 +210,5 @@ upstream.token.expired   # (planned) refresh cycle emits when reconsent triggere
 
 ## What's not shipped yet
 
-- `AwsKmsKekProvider`, `GcpKmsKekProvider`, `VaultTransitKekProvider` — Phase 5.2 (plugin ADR).
-- Hot-reload channel for keyring — currently requires process restart to add a key.
-- `POST /api/admin/vault/rotate|retire` endpoints — planned; use env change + rolling restart today.
-- Background sweep for compliance-driven full rewrap deadlines.
-- Redis-backed PKCE state store — current in-memory store only supports single-node deployments for the consent flow (multi-node deployments must set `MAVIO_PUBLIC_BASE_URL` to route consent through a sticky node).
+- `AwsKmsKeyWrapper`, `GcpKmsKeyWrapper` — planned as marketplace plugins (`@mavio-plugin/kek-*`). `VaultTransitKeyWrapper` ships in-tree in v1.2.
+- Web-console consent chip UX — the `-32020 { consentUrl }` shape is stable; the console side is on the Phase 5.4 roadmap.

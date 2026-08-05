@@ -7,17 +7,19 @@ import type {
 import type { Principal, ServerDescriptor, TransportDescriptor } from "@mavio/core";
 import {
   PrincipalUpstreamCredentialsRepository,
+  RedisPkceStateStore,
   SlackUserProvider,
   TokenExchangeProvider,
   Vault,
   VaultTransitKeyWrapper,
   LocalKeyWrapper,
   type KeyWrapper,
+  type PkceStateStore,
   type SubjectTokenResolver,
 } from "@mavio/upstream-auth";
 import { readKek, resetSharedKek, VAULT_RELOAD_CHANNEL } from "./vault-admin.controller.js";
 import type { Redis } from "@mavio/cache";
-import { REDIS_SUB } from "./cache.module.js";
+import { REDIS, REDIS_SUB } from "./cache.module.js";
 import type { Kysely } from "kysely";
 import type { Database } from "@mavio/registry";
 import type { MavioMetrics } from "@mavio/observability";
@@ -236,9 +238,12 @@ function makeSubjectResolver(
   };
 }
 
+import { VaultRewrapService } from "./vault-rewrap.service.js";
+
 @Global()
 @Module({
   providers: [
+    VaultRewrapService,
     {
       provide: UPSTREAM_CREDS_REPO,
       inject: [REGISTRY_DB],
@@ -250,18 +255,25 @@ function makeSubjectResolver(
     },
     {
       provide: UPSTREAM_PROVIDERS,
-      inject: [UPSTREAM_CREDS_REPO],
-      useFactory: (repo: PrincipalUpstreamCredentialsRepository): UpstreamProviderRegistry => {
+      inject: [UPSTREAM_CREDS_REPO, REDIS],
+      useFactory: (
+        repo: PrincipalUpstreamCredentialsRepository,
+        redis: Redis,
+      ): UpstreamProviderRegistry => {
         const registry = new UpstreamProviderRegistry();
+        const stateStore: PkceStateStore = new RedisPkceStateStore(redis);
         if (process.env.MAVIO_SLACK_CLIENT_ID && process.env.MAVIO_SLACK_CLIENT_SECRET) {
           registry.register(
-            new SlackUserProvider({
-              clientId: process.env.MAVIO_SLACK_CLIENT_ID,
-              clientSecret: process.env.MAVIO_SLACK_CLIENT_SECRET,
-              userScopes: (process.env.MAVIO_SLACK_USER_SCOPES ?? "chat:write,channels:read").split(
-                ",",
-              ),
-            }),
+            new SlackUserProvider(
+              {
+                clientId: process.env.MAVIO_SLACK_CLIENT_ID,
+                clientSecret: process.env.MAVIO_SLACK_CLIENT_SECRET,
+                userScopes: (process.env.MAVIO_SLACK_USER_SCOPES ?? "chat:write,channels:read").split(
+                  ",",
+                ),
+              },
+              stateStore,
+            ),
           );
         }
         if (process.env.MAVIO_TOKENX_ENDPOINT && process.env.MAVIO_TOKENX_AUDIENCE) {

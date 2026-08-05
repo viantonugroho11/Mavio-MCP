@@ -146,6 +146,56 @@ export class PrincipalUpstreamCredentialsRepository {
     }));
   }
 
+  /**
+   * Rewrap up to `limit` rows whose key_id is not the wrapper's current
+   * primary. Feeds the ADR-019 retire gate: safe to retire an old key once
+   * mavio_vault_rows_by_key{key_id=X} hits zero.
+   *
+   * Returns the number of rows actually rewrapped (may be less than `limit`
+   * if fewer stale rows exist, or 0 if none).
+   */
+  async rewrapStale(limit = 100): Promise<{ rewrapped: number; scanned: number }> {
+    const primary = await this.vault.primaryKeyId();
+    const rows = await this.db
+      .selectFrom("principal_upstream_credentials")
+      .selectAll()
+      .where("key_id", "!=", primary)
+      .orderBy("updated_at", "asc")
+      .limit(limit)
+      .execute();
+    let rewrapped = 0;
+    for (const row of rows) {
+      const env = {
+        keyId: row.key_id,
+        wrappedDek: row.wrapped_dek,
+        iv: row.iv,
+        authTag: row.auth_tag,
+        ciphertext: row.ciphertext,
+      };
+      let next;
+      try {
+        next = await this.vault.rewrap(env);
+      } catch {
+        continue; // skip rows we can't decrypt (retired key) — surface via metric
+      }
+      if (next.keyId === row.key_id) continue;
+      await this.db
+        .updateTable("principal_upstream_credentials")
+        .set({
+          key_id: next.keyId,
+          wrapped_dek: next.wrappedDek,
+          iv: next.iv,
+          auth_tag: next.authTag,
+          ciphertext: next.ciphertext,
+          updated_at: sql`now()`,
+        })
+        .where("id", "=", row.id)
+        .execute();
+      rewrapped++;
+    }
+    return { rewrapped, scanned: rows.length };
+  }
+
   async countByKeyId(): Promise<Record<string, number>> {
     const rows = await this.db
       .selectFrom("principal_upstream_credentials")

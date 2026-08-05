@@ -18,6 +18,7 @@ export {
   type PkceStateStore,
 } from "./providers/pkce.js";
 export { SlackUserProvider, type SlackUserProviderConfig } from "./providers/slack-user.js";
+export { RedisPkceStateStore, type RedisLike } from "./providers/redis-pkce-store.js";
 export {
   TokenExchangeProvider,
   type TokenExchangeConfig,

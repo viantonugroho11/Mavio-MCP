@@ -4,6 +4,39 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-08-05
+
+Phase 5.2 + 5.3 complete. Vault becomes pluggable (Vault Transit shipped, KMS plugins ready for the marketplace), key rotation runs from the admin API + hot-reloads across replicas, PKCE state moves to Redis (multi-node consent flows), and a background sweep drives ADR-019's retire gate on a schedule.
+
+### Added — Pluggable KEK backend + Vault Transit (Phase 5 sub-step 5.2a)
+- New `KeyWrapper` interface (`packages/upstream-auth/src/key-wrapper.ts`) — `primaryKeyId()`, `wrap(dek)`, `unwrap(keyId, wrappedDek)`, `listKeyIds()`. Async signature so remote KMS backends conform to the same shape as local AES.
+- `LocalKeyWrapper` — AES-256-GCM against a KEK held by `EnvKekProvider` (default, unchanged behavior).
+- `VaultTransitKeyWrapper` — HashiCorp Vault Transit backend over HTTP (`undici`). Keys never leave Vault; wrap/unwrap round-trip. `key_id` column format `vault-transit:<keyName>:v<version>` so ADR-019 per-key row counting still works. 3s AbortController timeout per call.
+- `Vault` accepts either a `KekProvider` (auto-wrapped in `LocalKeyWrapper` — back-compat) or a full `KeyWrapper`. `encrypt`/`decrypt`/`rewrap` now async; `PrincipalUpstreamCredentialsRepository` awaits them.
+- Server switch: `MAVIO_VAULT_KEK=vault-transit` (+ `_ENDPOINT`, `_TOKEN`, `_KEY`, optional `_MOUNT`, `_NAMESPACE`) selects the remote backend. Default is the env keyring.
+- Vitest: 9 new key-wrapper tests (Local + Vault Transit wire format + error paths + listKeyIds).
+
+### Added — Hot-reload keyring via Redis pub/sub (Phase 5 sub-step 5.2b)
+- Admin mutations publish to Redis channel `mavio:vault:keyring:reload`. `UpstreamAuthModule` subscribes on the shared `REDIS_SUB` connection and clears the process-local `EnvKekProvider` singleton so replicas re-hydrate on next Vault operation.
+- `CacheModule` now exports `REDIS_SUB` so other modules can share the subscriber connection.
+
+### Added — Admin vault endpoints (Phase 5 sub-step 5.2c)
+- `VaultAdminController` mounted at `/api/admin/vault`, all `workspace:admin`-guarded:
+  - `GET  /status` — `primaryKeyId` + `{ keyId, rowCount }` per known key + `totalRows`.
+  - `POST /rotate  { keyId, material(base64) }` — prepends a new primary. Rejects duplicate ids and non-32-byte material.
+  - `POST /retire  { keyId, force? }` — refuses when any row still references the key unless `force:true`. Retire never touches the primary.
+- Audit events: `vault.key.rotate` and `vault.key.retire` fire on both paths with `remainingRows` and `forced` in metadata.
+
+### Added — Redis-backed PKCE state store (Phase 5 sub-step 5.3a)
+- `RedisPkceStateStore` (`packages/upstream-auth/src/providers/redis-pkce-store.ts`) — thin `PkceStateStore` implementation. Auto-expires state after 10 min via Redis `EX`; `take()` reads then deletes. Multi-node consent flows now survive replica boundaries — an authorize URL issued by replica A can complete on replica B.
+- Server wires `RedisPkceStateStore` into `SlackUserProvider` at boot; in-memory store retained as the class-level default for library consumers.
+- Vitest: 5 tests (TTL derivation, take-then-delete, unknown-state null path, prefix threading, sub-second TTL clamp).
+
+### Added — Background rewrap sweep (Phase 5 sub-step 5.3b)
+- `PrincipalUpstreamCredentialsRepository.rewrapStale(limit)` — scans rows where `key_id != wrapper.primaryKeyId`, oldest-first, re-encrypts each under the current primary. Rows whose KEK has been retired are skipped (decrypt fails silently — surfaced via `mavio_vault_decrypt_fail_total`).
+- `VaultRewrapService` — env-gated NestJS service that runs the sweep on an interval. `MAVIO_VAULT_REWRAP_ENABLED=1` + optional `MAVIO_VAULT_REWRAP_INTERVAL_MS` (default 1h) + `MAVIO_VAULT_REWRAP_BATCH` (default 100). Fires a first sweep 5s after boot to catch any rows accumulated since last run.
+- Feeds the ADR-019 retire gate: `POST /api/admin/vault/retire` refuses non-empty keys, so operators watch `mavio_vault_rows_by_key{key_id=X}` drop toward zero and retire when safe.
+
 ## [1.1.0] — 2026-08-05
 
 Phase 5.1 complete. Per-principal upstream OAuth vault + injection middleware — Mavio can now call Slack as Alice, Notion as Alice, and Keycloak-fronted / KrakenD-fronted backends as Alice, all from one MCP endpoint on one Mavio session. All env-gated — existing v1.0 deployments upgrade with zero behavior change until the relevant `MAVIO_*` variables are set.
