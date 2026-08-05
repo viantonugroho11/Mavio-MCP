@@ -23,6 +23,7 @@ Every non-trivial architectural decision lives here as an immutable, numbered re
 | [ADR-015](ADR-015-user-identity-model.md) | User identity & lifecycle model | Accepted |
 | [ADR-016](ADR-016-audit-trail.md) | Audit trail — capture, storage, query | Proposed |
 | [ADR-017](ADR-017-client-connection-model.md) | Client connection model — Router-only surface | Accepted |
+| [ADR-018](ADR-018-per-principal-upstream-oauth-vault.md) | Per-principal upstream OAuth token vault + injection middleware | Proposed |
 
 ## Template
 New ADRs must follow [`ADR-000-template.md`](ADR-000-template.md).
