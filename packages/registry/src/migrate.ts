@@ -176,6 +176,41 @@ async function main(): Promise<void> {
       ON audit_logs (action, at DESC);
   `.execute(db);
 
+  // Per-principal upstream OAuth credentials (ADR-018 + ADR-019).
+  // Envelope encryption: DEK per row, wrapped by a KEK selected by key_id
+  // from the runtime keyring.
+  await sql`
+    CREATE TABLE IF NOT EXISTS principal_upstream_credentials (
+      id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      principal_id   text NOT NULL REFERENCES principals(id) ON DELETE CASCADE,
+      provider_id    text NOT NULL,
+      key_id         text NOT NULL,
+      wrapped_dek    bytea NOT NULL,
+      iv             bytea NOT NULL,
+      auth_tag       bytea NOT NULL,
+      ciphertext     bytea NOT NULL,
+      token_type     text NOT NULL DEFAULT 'Bearer',
+      scopes         text[] NOT NULL DEFAULT '{}',
+      expires_at     timestamptz,
+      issuer         text,
+      subject        text,
+      created_at     timestamptz NOT NULL DEFAULT now(),
+      updated_at     timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (principal_id, provider_id)
+    );
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS principal_upstream_expires_idx
+      ON principal_upstream_credentials (expires_at)
+      WHERE expires_at IS NOT NULL;
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS principal_upstream_key_id_idx
+      ON principal_upstream_credentials (key_id);
+  `.execute(db);
+
   await db.destroy();
   console.log("migrations applied");
 }

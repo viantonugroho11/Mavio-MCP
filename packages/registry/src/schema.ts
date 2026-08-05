@@ -97,6 +97,24 @@ export interface AuditLogsTable {
   ip: string | null;
 }
 
+export interface PrincipalUpstreamCredentialsTable {
+  id: Generated<string>;
+  principal_id: string;
+  provider_id: string;
+  key_id: string;
+  wrapped_dek: Buffer;
+  iv: Buffer;
+  auth_tag: Buffer;
+  ciphertext: Buffer;
+  token_type: string;
+  scopes: string[];
+  expires_at: Date | null;
+  issuer: string | null;
+  subject: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   servers: ServersTable;
   capability_snapshots: CapabilitySnapshotsTable;
@@ -107,4 +125,5 @@ export interface Database {
   oidc_providers: OidcProvidersTable;
   plugins: PluginsTable;
   audit_logs: AuditLogsTable;
+  principal_upstream_credentials: PrincipalUpstreamCredentialsTable;
 }
