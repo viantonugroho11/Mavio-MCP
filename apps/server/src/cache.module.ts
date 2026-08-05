@@ -47,7 +47,7 @@ export function currentRegion(): string {
         new InvalidationBus(pub, sub, nodeId),
     },
   ],
-  exports: [REDIS, CAPABILITY_CACHE, INVALIDATION_BUS, NODE_ID, REGION],
+  exports: [REDIS, REDIS_SUB, CAPABILITY_CACHE, INVALIDATION_BUS, NODE_ID, REGION],
 })
 export class CacheModule implements OnModuleDestroy {
   constructor(

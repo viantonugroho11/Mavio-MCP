@@ -39,14 +39,13 @@ export class PrincipalUpstreamCredentialsRepository {
   ) {}
 
   async put(input: UpstreamTokenInput): Promise<UpstreamToken> {
-    const access = this.vault.encrypt(input.accessToken);
     // Refresh token, if present, is stored inline in the same ciphertext blob
     // as a JSON envelope so it shares one DEK and one row.
     const payload = JSON.stringify({
       access: input.accessToken,
       refresh: input.refreshToken ?? null,
     });
-    const env = this.vault.encrypt(payload);
+    const env = await this.vault.encrypt(payload);
 
     const row = await this.db
       .insertInto("principal_upstream_credentials")
@@ -82,11 +81,7 @@ export class PrincipalUpstreamCredentialsRepository {
       .returningAll()
       .executeTakeFirstOrThrow();
 
-    // Silence unused-variable warning; access envelope kept for future
-    // access-only reads that don't need the refresh token.
-    void access;
-
-    return this.toToken(row);
+    return await this.toToken(row);
   }
 
   async get(principalId: string, providerId: string): Promise<UpstreamToken | null> {
@@ -97,7 +92,7 @@ export class PrincipalUpstreamCredentialsRepository {
       .where("provider_id", "=", providerId)
       .executeTakeFirst();
     if (!row) return null;
-    return this.toToken(row);
+    return await this.toToken(row);
   }
 
   async revoke(principalId: string, providerId: string): Promise<boolean> {
@@ -181,7 +176,7 @@ export class PrincipalUpstreamCredentialsRepository {
       authTag: row.auth_tag,
       ciphertext: row.ciphertext,
     };
-    const next = this.vault.rewrap(env);
+    const next = await this.vault.rewrap(env);
     if (next.keyId === row.key_id) return;
     await this.db
       .updateTable("principal_upstream_credentials")
@@ -197,7 +192,7 @@ export class PrincipalUpstreamCredentialsRepository {
       .execute();
   }
 
-  private toToken(row: {
+  private async toToken(row: {
     principal_id: string;
     provider_id: string;
     key_id: string;
@@ -211,16 +206,15 @@ export class PrincipalUpstreamCredentialsRepository {
     issuer: string | null;
     subject: string | null;
     updated_at: Date;
-  }): UpstreamToken {
-    const plaintext = this.vault
-      .decrypt({
-        keyId: row.key_id,
-        wrappedDek: row.wrapped_dek,
-        iv: row.iv,
-        authTag: row.auth_tag,
-        ciphertext: row.ciphertext,
-      })
-      .toString("utf8");
+  }): Promise<UpstreamToken> {
+    const decrypted = await this.vault.decrypt({
+      keyId: row.key_id,
+      wrappedDek: row.wrapped_dek,
+      iv: row.iv,
+      authTag: row.auth_tag,
+      ciphertext: row.ciphertext,
+    });
+    const plaintext = decrypted.toString("utf8");
     const parsed = JSON.parse(plaintext) as { access: string; refresh: string | null };
     return {
       principalId: row.principal_id,

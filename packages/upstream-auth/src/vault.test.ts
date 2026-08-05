@@ -72,61 +72,60 @@ describe("Vault", () => {
     MAVIO_VAULT_KEYRING: `v2:${b64(32, 0x22)},v1:${b64(32, 0x11)}`,
   } as NodeJS.ProcessEnv);
 
-  it("round-trips plaintext under primary key", () => {
+  it("round-trips plaintext under primary key", async () => {
     const v = new Vault(kek);
-    const env = v.encrypt("xoxp-alice-secret");
+    const env = await v.encrypt("xoxp-alice-secret");
     expect(env.keyId).toBe("v2");
-    expect(v.decrypt(env).toString("utf8")).toBe("xoxp-alice-secret");
+    expect((await v.decrypt(env)).toString("utf8")).toBe("xoxp-alice-secret");
   });
 
-  it("decrypts a legacy row under an older key", () => {
+  it("decrypts a legacy row under an older key", async () => {
     const legacy = new EnvKekProvider({
       MAVIO_VAULT_KEYRING: `v1:${b64(32, 0x11)}`,
     } as NodeJS.ProcessEnv);
     const legacyVault = new Vault(legacy);
-    const env = legacyVault.encrypt("old-token");
+    const env = await legacyVault.encrypt("old-token");
 
-    // Now the runtime has both v2 (primary) and v1 (legacy).
     const both = new Vault(
       new EnvKekProvider({
         MAVIO_VAULT_KEYRING: `v2:${b64(32, 0x22)},v1:${b64(32, 0x11)}`,
       } as NodeJS.ProcessEnv),
     );
-    expect(both.decrypt(env).toString("utf8")).toBe("old-token");
+    expect((await both.decrypt(env)).toString("utf8")).toBe("old-token");
   });
 
-  it("rewrap re-encrypts under current primary", () => {
+  it("rewrap re-encrypts under current primary", async () => {
     const legacy = new EnvKekProvider({
       MAVIO_VAULT_KEYRING: `v1:${b64(32, 0x11)}`,
     } as NodeJS.ProcessEnv);
-    const legacyEnv = new Vault(legacy).encrypt("payload");
+    const legacyEnv = await new Vault(legacy).encrypt("payload");
     expect(legacyEnv.keyId).toBe("v1");
 
-    const rotated = new Vault(kek); // v2 primary, v1 legacy
-    const rewrapped = rotated.rewrap(legacyEnv);
+    const rotated = new Vault(kek);
+    const rewrapped = await rotated.rewrap(legacyEnv);
     expect(rewrapped.keyId).toBe("v2");
-    expect(rotated.decrypt(rewrapped).toString("utf8")).toBe("payload");
+    expect((await rotated.decrypt(rewrapped)).toString("utf8")).toBe("payload");
   });
 
-  it("throws on unknown keyId (retired prematurely)", () => {
+  it("throws on unknown keyId (retired prematurely)", async () => {
     const v = new Vault(kek);
-    const env = v.encrypt("x");
+    const env = await v.encrypt("x");
     const orphan = { ...env, keyId: "vX" };
-    expect(() => v.decrypt(orphan)).toThrow(/no KEK for keyId vX/);
+    await expect(v.decrypt(orphan)).rejects.toThrow(/no local KEK for keyId vX/);
   });
 
-  it("throws on tampered ciphertext", () => {
+  it("throws on tampered ciphertext", async () => {
     const v = new Vault(kek);
-    const env = v.encrypt("secret");
+    const env = await v.encrypt("secret");
     env.ciphertext[0] = env.ciphertext[0]! ^ 0xff;
-    expect(() => v.decrypt(env)).toThrow(/decrypt failed/);
+    await expect(v.decrypt(env)).rejects.toThrow(/decrypt failed/);
   });
 
-  it("throws on tampered wrappedDek", () => {
+  it("throws on tampered wrappedDek", async () => {
     const v = new Vault(kek);
-    const env = v.encrypt("secret");
+    const env = await v.encrypt("secret");
     env.wrappedDek[env.wrappedDek.length - 1] =
       env.wrappedDek[env.wrappedDek.length - 1]! ^ 0xff;
-    expect(() => v.decrypt(env)).toThrow(/unwrap failed/);
+    await expect(v.decrypt(env)).rejects.toThrow(/unwrap failed/);
   });
 });

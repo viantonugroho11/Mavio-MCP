@@ -1,6 +1,12 @@
 export { EnvKekProvider, type KekEntry, type KekProvider } from "./keyring.js";
 export { Vault, type Envelope } from "./vault.js";
 export {
+  LocalKeyWrapper,
+  VaultTransitKeyWrapper,
+  type KeyWrapper,
+  type VaultTransitConfig,
+} from "./key-wrapper.js";
+export {
   PrincipalUpstreamCredentialsRepository,
   type UpstreamToken,
   type UpstreamTokenInput,

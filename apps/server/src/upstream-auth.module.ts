@@ -6,13 +6,18 @@ import type {
 } from "@mavio/sdk";
 import type { Principal, ServerDescriptor, TransportDescriptor } from "@mavio/core";
 import {
-  EnvKekProvider,
   PrincipalUpstreamCredentialsRepository,
   SlackUserProvider,
   TokenExchangeProvider,
   Vault,
+  VaultTransitKeyWrapper,
+  LocalKeyWrapper,
+  type KeyWrapper,
   type SubjectTokenResolver,
 } from "@mavio/upstream-auth";
+import { readKek, resetSharedKek, VAULT_RELOAD_CHANNEL } from "./vault-admin.controller.js";
+import type { Redis } from "@mavio/cache";
+import { REDIS_SUB } from "./cache.module.js";
 import type { Kysely } from "kysely";
 import type { Database } from "@mavio/registry";
 import type { MavioMetrics } from "@mavio/observability";
@@ -165,6 +170,34 @@ function isExpiringSoon(cred: UpstreamCredential): boolean {
 }
 
 /**
+ * Chooses the KEK backend based on env:
+ *   MAVIO_VAULT_KEK=vault-transit → HashiCorp Vault Transit remote wrap/unwrap
+ *   (anything else / unset)       → LocalKeyWrapper backed by MAVIO_VAULT_KEYRING
+ * Local wrappers reuse the shared EnvKekProvider singleton so admin
+ * rotate/retire operations mutate the same instance the Vault reads through.
+ */
+function buildKeyWrapper(): KeyWrapper {
+  if (process.env.MAVIO_VAULT_KEK === "vault-transit") {
+    const endpoint = process.env.MAVIO_VAULT_TRANSIT_ENDPOINT;
+    const token = process.env.MAVIO_VAULT_TRANSIT_TOKEN;
+    const keyName = process.env.MAVIO_VAULT_TRANSIT_KEY;
+    if (!endpoint || !token || !keyName) {
+      throw new Error(
+        "MAVIO_VAULT_KEK=vault-transit requires _ENDPOINT, _TOKEN, and _KEY env vars",
+      );
+    }
+    return new VaultTransitKeyWrapper({
+      endpoint,
+      token,
+      keyName,
+      mount: process.env.MAVIO_VAULT_TRANSIT_MOUNT,
+      namespace: process.env.MAVIO_VAULT_TRANSIT_NAMESPACE,
+    });
+  }
+  return new LocalKeyWrapper(readKek());
+}
+
+/**
  * Applies a DispatchInjection to a transport descriptor. Returns a shallow
  * clone — never mutates the cached descriptor. Env is overlaid onto stdio,
  * headers onto everything else.
@@ -210,8 +243,8 @@ function makeSubjectResolver(
       provide: UPSTREAM_CREDS_REPO,
       inject: [REGISTRY_DB],
       useFactory: (db: Kysely<Database>): PrincipalUpstreamCredentialsRepository => {
-        const kek = new EnvKekProvider();
-        const vault = new Vault(kek);
+        const wrapper = buildKeyWrapper();
+        const vault = new Vault(wrapper);
         return new PrincipalUpstreamCredentialsRepository(db, vault);
       },
     },
@@ -260,7 +293,21 @@ function makeSubjectResolver(
   exports: [UPSTREAM_PROVIDERS, UPSTREAM_TOKEN_SERVICE, UPSTREAM_CREDS_REPO],
 })
 export class UpstreamAuthModule implements OnModuleInit {
-  onModuleInit(): void {
+  constructor(@Inject(REDIS_SUB) private readonly sub: Redis) {}
+
+  async onModuleInit(): Promise<void> {
     console.log("[upstream-auth] providers loaded");
+    // Hot-reload the local KEK singleton on rotate/retire published by any
+    // replica. Non-local wrappers (Vault Transit / KMS plugins) are managed
+    // out-of-band and don't need this channel — they still receive the message
+    // but re-hydrating the local KEK is harmless in that case.
+    await this.sub.subscribe(VAULT_RELOAD_CHANNEL).catch((err) => {
+      console.warn(`[upstream-auth] failed to subscribe to ${VAULT_RELOAD_CHANNEL}:`, err);
+    });
+    this.sub.on("message", (channel, message) => {
+      if (channel !== VAULT_RELOAD_CHANNEL) return;
+      console.log(`[upstream-auth] keyring reload signal: ${message}`);
+      resetSharedKek();
+    });
   }
 }

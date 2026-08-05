@@ -33,6 +33,7 @@ import { MarketplaceController } from "./marketplace.controller.js";
 import { UpstreamAuthModule } from "./upstream-auth.module.js";
 import { UpstreamAuthController } from "./upstream-auth.controller.js";
 import { UpstreamAdminController } from "./upstream-admin.controller.js";
+import { VaultAdminController } from "./vault-admin.controller.js";
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { UpstreamAdminController } from "./upstream-admin.controller.js";
     MarketplaceController,
     UpstreamAuthController,
     UpstreamAdminController,
+    VaultAdminController,
   ],
   providers: [
     RouterService,
