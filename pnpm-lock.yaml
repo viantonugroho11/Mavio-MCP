@@ -530,6 +530,9 @@ importers:
       '@mavio/registry':
         specifier: workspace:*
         version: link:../registry
+      '@mavio/sdk':
+        specifier: workspace:*
+        version: link:../sdk
       kysely:
         specifier: ^0.27.4
         version: 0.27.6

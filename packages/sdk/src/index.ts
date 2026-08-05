@@ -76,6 +76,65 @@ export interface AuthProvider {
   resolve(headers: Record<string, string | string[] | undefined>): Promise<Principal | null>;
 }
 
+/**
+ * Upstream credential provider — knows how to obtain and refresh a
+ * per-principal token for a specific SaaS or IdP (Slack, Notion, Keycloak, ...).
+ * See ADR-018.
+ */
+export interface UpstreamCredential {
+  accessToken: string;
+  refreshToken?: string;
+  tokenType?: string;
+  scopes?: string[];
+  expiresAt?: Date;
+  issuer?: string;
+  subject?: string;
+}
+
+export interface DispatchInjection {
+  /** Env vars to overlay onto stdio transports. */
+  env?: Record<string, string>;
+  /** Headers to overlay onto http/sse/ws/graphql transports. */
+  headers?: Record<string, string>;
+}
+
+export interface UpstreamProviderAuthorizeContext {
+  principalId: string;
+  state: string;
+  returnTo: string;
+  /** Absolute base URL of the Mavio server, e.g. https://mcp.example.com. */
+  callbackBaseUrl: string;
+}
+
+export interface UpstreamProviderExchangeContext {
+  principalId: string;
+  code: string;
+  state: string;
+  callbackBaseUrl: string;
+}
+
+export interface UpstreamCredentialProvider {
+  readonly id: string;
+  /**
+   * Build the URL the user's browser must be sent to in order to grant
+   * consent. `authorize()` returns null when the provider mints tokens
+   * without a browser round-trip (e.g. RFC 8693 token-exchange from an
+   * existing session — `mint()` is used instead).
+   */
+  authorize(ctx: UpstreamProviderAuthorizeContext): Promise<{ url: string } | null>;
+  exchange?(ctx: UpstreamProviderExchangeContext): Promise<UpstreamCredential>;
+  /**
+   * Non-interactive mint path — used by token-exchange providers that can
+   * produce a downstream token from an existing subject token attached to
+   * the caller's Mavio session.
+   */
+  mint?(input: { principalId: string; subjectToken?: string }): Promise<UpstreamCredential>;
+  refresh(token: UpstreamCredential): Promise<UpstreamCredential>;
+  revoke?(token: UpstreamCredential): Promise<void>;
+  /** How the resolved token attaches to an outbound dispatch. */
+  inject(token: UpstreamCredential): DispatchInjection;
+}
+
 export interface ImporterRegistry {
   register(importer: Importer): void;
   list(): Importer[];

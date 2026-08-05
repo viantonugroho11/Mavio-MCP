@@ -5,3 +5,9 @@ export {
   type UpstreamToken,
   type UpstreamTokenInput,
 } from "./repo.js";
+export {
+  Oauth2PkceProvider,
+  InMemoryPkceStateStore,
+  type Oauth2PkceConfig,
+  type PkceStateStore,
+} from "./providers/pkce.js";
