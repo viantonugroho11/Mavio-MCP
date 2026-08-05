@@ -84,6 +84,9 @@ importers:
       '@mavio/import-sql':
         specifier: workspace:*
         version: link:../../packages/import-sql
+      '@mavio/marketplace':
+        specifier: workspace:*
+        version: link:../../packages/marketplace
       '@mavio/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -93,9 +96,15 @@ importers:
       '@mavio/rbac':
         specifier: workspace:*
         version: link:../../packages/rbac
+      '@mavio/rbac-opa':
+        specifier: workspace:*
+        version: link:../../packages/rbac-opa
       '@mavio/registry':
         specifier: workspace:*
         version: link:../../packages/registry
+      '@mavio/registry-external':
+        specifier: workspace:*
+        version: link:../../packages/registry-external
       '@mavio/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
@@ -132,6 +141,9 @@ importers:
       undici:
         specifier: ^6.19.8
         version: 6.28.0
+      ws:
+        specifier: ^8.18.0
+        version: 8.21.2
     devDependencies:
       '@types/cookie':
         specifier: ^0.6.0
@@ -142,6 +154,9 @@ importers:
       '@types/pg':
         specifier: ^8.11.10
         version: 8.20.3
+      '@types/ws':
+        specifier: ^8.5.12
+        version: 8.18.1
       rimraf:
         specifier: ^5.0.5
         version: 5.0.10
@@ -204,6 +219,9 @@ importers:
       typescript:
         specifier: ^5.5.4
         version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)
 
   packages/config:
     dependencies:
@@ -306,6 +324,25 @@ importers:
         specifier: ^5.5.4
         version: 5.9.3
 
+  packages/marketplace:
+    dependencies:
+      '@mavio/core':
+        specifier: workspace:*
+        version: link:../core
+      undici:
+        specifier: ^6.19.8
+        version: 6.28.0
+    devDependencies:
+      rimraf:
+        specifier: ^5.0.5
+        version: 5.0.10
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)
+
   packages/observability:
     dependencies:
       '@mavio/core':
@@ -381,6 +418,28 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.43)
 
+  packages/rbac-opa:
+    dependencies:
+      '@mavio/core':
+        specifier: workspace:*
+        version: link:../core
+      '@mavio/rbac':
+        specifier: workspace:*
+        version: link:../rbac
+      undici:
+        specifier: ^6.19.8
+        version: 6.28.0
+    devDependencies:
+      rimraf:
+        specifier: ^5.0.5
+        version: 5.0.10
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)
+
   packages/registry:
     dependencies:
       '@mavio/core':
@@ -399,6 +458,25 @@ importers:
       '@types/pg':
         specifier: ^8.11.6
         version: 8.20.3
+      rimraf:
+        specifier: ^5.0.5
+        version: 5.0.10
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)
+
+  packages/registry-external:
+    dependencies:
+      '@mavio/core':
+        specifier: workspace:*
+        version: link:../core
+      undici:
+        specifier: ^6.19.8
+        version: 6.28.0
+    devDependencies:
       rimraf:
         specifier: ^5.0.5
         version: 5.0.10
@@ -430,7 +508,13 @@ importers:
       undici:
         specifier: ^6.19.8
         version: 6.28.0
+      ws:
+        specifier: ^8.18.0
+        version: 8.21.2
     devDependencies:
+      '@types/ws':
+        specifier: ^8.5.12
+        version: 8.18.1
       rimraf:
         specifier: ^5.0.5
         version: 5.0.10
@@ -1294,6 +1378,9 @@ packages:
 
   '@types/shimmer@1.2.0':
     resolution: {integrity: sha512-UE7oxhQLLd9gub6JKIAhDq06T0F6FnztwMNRvYgjeQSBeMc1ZG/tA47EwfduvkuQS8apbkM/lpLpWsaCeYsXVg==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   '@vitest/expect@2.1.9':
     resolution: {integrity: sha512-UJCIkTBenHeKT1TTlKMJWy1laZewsRIzYighyYiJKZreqtdxSos/S1t+ktRMQWu2CKqaarrkeszJx1cgC5tGZw==}
@@ -2556,6 +2643,18 @@ packages:
     resolution: {integrity: sha512-si7QWI6zUMq56bESFvagtmzMdGOtoxfR+Sez11Mobfc7tm+VkUckk9bW2UeffTGVUbOksxmSw0AA2gs8g71NCQ==}
     engines: {node: '>=12'}
 
+  ws@8.21.2:
+    resolution: {integrity: sha512-54dMVAo4WIe6SKy3vBgN+9bJZqqQ8IMRevAkOLQALhi49qkkQDQfWdAZ8KQlXiEabw88ARXXdUrlvtbKQX+aKw==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
@@ -3326,6 +3425,10 @@ snapshots:
       '@types/send': 0.17.6
 
   '@types/shimmer@1.2.0': {}
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 20.19.43
 
   '@vitest/expect@2.1.9':
     dependencies:
@@ -4640,6 +4743,8 @@ snapshots:
       ansi-styles: 6.2.3
       string-width: 5.1.2
       strip-ansi: 7.2.0
+
+  ws@8.21.2: {}
 
   xtend@4.0.2: {}
 

@@ -28,6 +28,8 @@ import { MetricsController } from "./metrics.controller.js";
 import { AuditModule } from "./audit.module.js";
 import { AuditController } from "./audit.controller.js";
 import { SseSessionRegistry } from "./sse.registry.js";
+import { ExternalRegistryModule } from "./external-registry.module.js";
+import { MarketplaceController } from "./marketplace.controller.js";
 
 @Module({
   imports: [
@@ -41,6 +43,7 @@ import { SseSessionRegistry } from "./sse.registry.js";
     PluginModule,
     ObservabilityModule,
     AuditModule,
+    ExternalRegistryModule,
   ],
   controllers: [
     RouterController,
@@ -55,6 +58,7 @@ import { SseSessionRegistry } from "./sse.registry.js";
     PluginsController,
     MetricsController,
     AuditController,
+    MarketplaceController,
   ],
   providers: [
     RouterService,
