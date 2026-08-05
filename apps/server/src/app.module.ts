@@ -32,6 +32,7 @@ import { ExternalRegistryModule } from "./external-registry.module.js";
 import { MarketplaceController } from "./marketplace.controller.js";
 import { UpstreamAuthModule } from "./upstream-auth.module.js";
 import { UpstreamAuthController } from "./upstream-auth.controller.js";
+import { UpstreamAdminController } from "./upstream-admin.controller.js";
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { UpstreamAuthController } from "./upstream-auth.controller.js";
     AuditController,
     MarketplaceController,
     UpstreamAuthController,
+    UpstreamAdminController,
   ],
   providers: [
     RouterService,

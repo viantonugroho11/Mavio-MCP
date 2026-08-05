@@ -7,6 +7,7 @@ import { registerServe } from "./commands/serve.js";
 import { registerServers } from "./commands/servers.js";
 import { registerRbac } from "./commands/rbac.js";
 import { registerPlugin } from "./commands/plugin.js";
+import { registerUpstream } from "./commands/upstream.js";
 
 const program = new Command();
 
@@ -21,6 +22,7 @@ registerImport(program);
 registerServers(program);
 registerRbac(program);
 registerPlugin(program);
+registerUpstream(program);
 
 program.parseAsync(process.argv).catch((err) => {
   console.error(kleur.red("error:"), err instanceof Error ? err.message : err);

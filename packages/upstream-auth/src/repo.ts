@@ -109,6 +109,48 @@ export class PrincipalUpstreamCredentialsRepository {
     return result.numDeletedRows > 0n;
   }
 
+  /**
+   * Metadata-only listing for admin surfaces (never returns access tokens).
+   */
+  async listByPrincipal(principalId: string): Promise<
+    Array<{
+      providerId: string;
+      tokenType: string;
+      scopes: string[];
+      expiresAt: Date | null;
+      issuer: string | null;
+      subject: string | null;
+      keyId: string;
+      updatedAt: Date;
+    }>
+  > {
+    const rows = await this.db
+      .selectFrom("principal_upstream_credentials")
+      .select([
+        "provider_id",
+        "token_type",
+        "scopes",
+        "expires_at",
+        "issuer",
+        "subject",
+        "key_id",
+        "updated_at",
+      ])
+      .where("principal_id", "=", principalId)
+      .orderBy("provider_id", "asc")
+      .execute();
+    return rows.map((r) => ({
+      providerId: r.provider_id,
+      tokenType: r.token_type,
+      scopes: r.scopes,
+      expiresAt: r.expires_at,
+      issuer: r.issuer,
+      subject: r.subject,
+      keyId: r.key_id,
+      updatedAt: r.updated_at,
+    }));
+  }
+
   async countByKeyId(): Promise<Record<string, number>> {
     const rows = await this.db
       .selectFrom("principal_upstream_credentials")
