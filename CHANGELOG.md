@@ -4,6 +4,62 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-08-05
+
+Phase 4 (Scale & Polish) complete. This is the v1.0 GA — end of the architecture-doc scope. Rolls up: WebSocket transport (client + `/mcp/ws` gateway), external registry sources (etcd + Consul with Postgres mirror sync), OPA + Cedar policy engines, SAML + mTLS via trusted-proxy header resolver + native mTLS peer-cert resolver, region-namespaced capability cache + router region filter, and a signed plugin marketplace client + admin API.
+
+All Phase 4 sub-steps are env-gated so existing deployments upgrade with zero behavior change — features light up only when their env flag / URL is set.
+
+Test totals across new suites: 5 (external registry) + 6 (rbac-opa) + 9 (federated-auth) + 4 (cache regional) + 9 (marketplace) — 33 new tests, all green alongside the existing 5 audit tests.
+
+### Added — Public plugin marketplace (Phase 4 sub-step 4f)
+- New pkg `@mavio/marketplace` with `MarketplaceClient`:
+  - `fetchIndex(force?)` — GETs configured index URL (60s in-memory cache) returning `{version, generatedAt, plugins:[{name, version, tarballUrl, sha256, signature?, ...}]}`.
+  - `search(q)` — substring match on name / description / keywords.
+  - `get(name)` / `download(entry)` — pulls tarball via `undici`, hashes bytes with SHA-256, throws `MARKETPLACE_INTEGRITY` on mismatch. Optional Ed25519 signature verified via `crypto.verify("ed25519", ...)` against a configured PEM public key.
+- `MarketplaceController` on `@mavio/server`: `GET /api/marketplace?q=` + `GET /api/marketplace/get?name=` guarded by `plugin:install`. Enabled via `MAVIO_MARKETPLACE_URL` + optional `MAVIO_MARKETPLACE_PUBKEY_PEM`. Returns `{enabled:false, results:[]}` when disabled — so the web console can render a placeholder without erroring.
+- Vitest coverage: 9 tests (index caching, search-by-name/desc/keyword, 5xx failure, download sha match/mismatch, Ed25519 verify success/failure, missing-key rejection).
+
+### Added — Multi-region router + regional caches (Phase 4 sub-step 4e)
+- `CapabilityCache` constructor now accepts `{ region }`. Keys become `mavio:cap:<region>:<serverId>` + `mavio:servers:<region>:list`. Legacy `new CapabilityCache(redis, ttlNumber)` still works (region defaults to `"default"`).
+- `cache.module` reads `MAVIO_REGION` env, exposes it via new `REGION` DI token, wires into `CapabilityCache`.
+- `RouterService.loadServers` now filters through `filterByRegion` — a server with `metadata.region` different from `MAVIO_REGION` is dropped. Region-untagged servers remain globally routable so mixed deployments keep working.
+- Two regions can safely share the same Redis; keys never collide.
+- Vitest coverage: 4 tests (default prefix, region-scoped keys, cross-region isolation, legacy numeric ttl arg).
+
+### Added — SAML + mTLS auth providers (Phase 4 sub-step 4d)
+- `federated-auth.ts`: two resolvers layered ahead of the existing session/bearer chain in `resolvePrincipalFromRequest`:
+  - `trustedHeaderPrincipal(req)` — reads `X-Auth-Subject / -Type / -Workspace / -Scopes` when `MAVIO_TRUSTED_PROXY_ENABLED=1`. Enterprise deployments front the server with a reverse proxy (Envoy, oauth2-proxy, Pomerium) that terminates SAML SSO / mTLS and forwards a verified subject; this is the industry-standard zero-trust pattern.
+  - `mtlsPrincipal(req)` — reads `req.socket.getPeerCertificate()` when `MAVIO_MTLS_ENABLED=1`. Requires the Node HTTPS server to be started with `requestCert: true`. Only accepts sockets where `socket.authorized === true`; produces `id: "cn:<CN>"`, `type: service`.
+- Vitest coverage: 9 tests (flag off/on, defaults, unknown type coercion, unauthorized peer rejection, CN missing).
+
+### Added — OPA/Cedar RBAC adapter (Phase 4 sub-step 4c)
+- New pkg `@mavio/rbac-opa`. Three engines share one HTTP path:
+  - `RemoteHttpPolicyEngine` — generic base. Sends `{input:{principal, action, resource}}` and parses `{result:{allow,reason}}` / `{allow,reason}` / bare boolean shapes. Fail-closed on error/timeout/unknown shape.
+  - `OpaPolicyEngine` — thin subclass targeting an OPA server, typically `http://opa:8181/v1/data/mavio/authz/allow`.
+  - `CedarSidecarPolicyEngine` — wraps payload in Cedar entity refs (`Mavio::User::"..."`, `Mavio::Action::"..."`).
+- `rbac.module` factory reads `MAVIO_RBAC_ENGINE=builtin|opa|cedar` (+ `_URL`, `_TOKEN`). Falls back to builtin engine when kind is unknown or URL missing; logs the choice at boot.
+- 2s default request timeout via `AbortController`, so a stalled policy service can't wedge the request path.
+- Vitest coverage: 6 tests (OPA allow, flat deny, 5xx fail-closed, unknown shape fail-closed, Cedar payload envelope, timeout fail-closed).
+
+### Added — External registry sources (Phase 4 sub-step 4b)
+- New pkg `@mavio/registry-external` with `ExternalRegistrySource` interface + `createRegistrySource({kind})` factory.
+- `EtcdSource` — talks to etcd v3 gRPC-JSON gateway (`POST /v3/kv/range`) with base64 prefix + range_end. Optional bearer token.
+- `ConsulSource` — talks to Consul HTTP KV (`GET /v1/kv/<prefix>?recurse`) with optional ACL token + datacenter. Returns `[]` on 404.
+- Both are stateless HTTP over `undici` — no additional client deps.
+- `ExternalRegistrySync` module on `@mavio/server` polls the configured source on an interval (default 30s), fingerprint-diffs each `ServerDescriptor`, upserts into Postgres `Registry` and publishes `{kind:"servers"}` on `InvalidationBus` when anything changes. Env-gated:
+  - `MAVIO_EXTERNAL_REGISTRY=etcd|consul`
+  - `MAVIO_EXTERNAL_REGISTRY_ENDPOINT` (required)
+  - `MAVIO_EXTERNAL_REGISTRY_PREFIX` / `_TOKEN` / `_DC` / `_INTERVAL_MS` (optional)
+- Postgres remains source of truth for RBAC/snapshots/audit; external KV feeds service discovery only.
+- Vitest coverage: 5 tests using `undici.MockAgent` (etcd range decode, 5xx error, malformed skip; Consul 404 → `[]`, recursive KV decode with null values filtered).
+
+### Added — WebSocket transport (Phase 4 sub-step 4a)
+- `WsTransportDescriptor` in `@mavio/core` (`type:"ws"`, url, headers, auth, optional subprotocol). Added `"ws"` to the `TransportKind` union already reserved.
+- `@mavio/transport` new `WsTransport`/`WsSession` upstream client (uses `ws` pkg). Frames correlated by `id`; notifications fire-and-forget. Reuses `bearerHeaderFromAuth` for auth headers. Registered in `TransportManager`.
+- Downstream `ws.gateway.ts` on `@mavio/server`: attaches `WebSocketServer({ noServer:true })` to Nest's HTTP server on `/mcp/ws`. Per-socket principal via `resolvePrincipalFromRequest` (upgrade headers). Each incoming JSON-RPC frame dispatched through `RouterService.handle`; response written back on same socket. 15s ping keep-alive.
+- `main.ts` grabs `RouterService` + `RBAC_REPO` from Nest and calls `attachWsGateway` after `app.listen`.
+
 ## [0.2.0] — 2026-08-04
 
 Phase 2 (Enterprise) + Phase 3 (Extensibility & Ops) complete. Rolls up: OIDC + Redis session, web login UI, RBAC 4-scope engine, SSE transport (with per-call fanout), Inspector schema explorer, playground replay/export, audit logs, test suite (29 tests) — plus Phase 3 Plugin Manager/SDK, GraphQL polish, MCP-mirror importer, circuit breaker + per-server rate limit, Prometheus metrics, OpenTelemetry tracing, Helm chart + K8s manifests + Dockerfile.
