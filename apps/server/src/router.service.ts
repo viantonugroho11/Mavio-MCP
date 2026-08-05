@@ -69,10 +69,19 @@ export class RouterService implements OnModuleInit {
 
   private async loadServers(): Promise<ServerDescriptor[]> {
     const cached = await this.cache.getServerList();
-    if (cached) return cached;
+    if (cached) return this.filterByRegion(cached);
     const list = await this.registry.list();
     await this.cache.setServerList(list);
-    return list;
+    return this.filterByRegion(list);
+  }
+
+  private filterByRegion(list: ServerDescriptor[]): ServerDescriptor[] {
+    const region = process.env.MAVIO_REGION;
+    if (!region) return list;
+    return list.filter((s) => {
+      const tag = (s.metadata as { region?: string } | undefined)?.region;
+      return !tag || tag === region;
+    });
   }
 
   private async loadCapabilities(serverId: string): Promise<ServerCapabilities | null> {

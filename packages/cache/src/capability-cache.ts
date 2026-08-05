@@ -1,31 +1,46 @@
 import type { Redis } from "ioredis";
 import type { ServerCapabilities, ServerDescriptor } from "@mavio/core";
 
-const PREFIX = "mavio:cap:";
-const SERVERS_KEY = "mavio:servers:list";
-
 export interface CachedServer {
   descriptor: ServerDescriptor;
   capabilities: ServerCapabilities;
 }
 
+export interface CapabilityCacheOptions {
+  ttlSeconds?: number;
+  /** Region tag; cache keys are namespaced so multiple regions can share a Redis. */
+  region?: string;
+}
+
 export class CapabilityCache {
-  constructor(
-    private readonly redis: Redis,
-    private readonly ttlSeconds = 300,
-  ) {}
+  private readonly ttlSeconds: number;
+  private readonly region: string;
+  private readonly prefix: string;
+  private readonly serversKey: string;
+
+  constructor(private readonly redis: Redis, opts: CapabilityCacheOptions | number = {}) {
+    if (typeof opts === "number") {
+      this.ttlSeconds = opts;
+      this.region = "default";
+    } else {
+      this.ttlSeconds = opts.ttlSeconds ?? 300;
+      this.region = opts.region ?? "default";
+    }
+    this.prefix = `mavio:cap:${this.region}:`;
+    this.serversKey = `mavio:servers:${this.region}:list`;
+  }
 
   private key(serverId: string): string {
-    return `${PREFIX}${serverId}`;
+    return `${this.prefix}${serverId}`;
   }
 
   async getServerList(): Promise<ServerDescriptor[] | null> {
-    const raw = await this.redis.get(SERVERS_KEY);
+    const raw = await this.redis.get(this.serversKey);
     return raw ? (JSON.parse(raw) as ServerDescriptor[]) : null;
   }
 
   async setServerList(list: ServerDescriptor[]): Promise<void> {
-    await this.redis.set(SERVERS_KEY, JSON.stringify(list), "EX", this.ttlSeconds);
+    await this.redis.set(this.serversKey, JSON.stringify(list), "EX", this.ttlSeconds);
   }
 
   async getCapabilities(serverId: string): Promise<ServerCapabilities | null> {
@@ -41,12 +56,12 @@ export class CapabilityCache {
     if (serverId) {
       await this.redis.del(this.key(serverId));
     }
-    await this.redis.del(SERVERS_KEY);
+    await this.redis.del(this.serversKey);
   }
 
   async invalidateAll(): Promise<void> {
-    const keys = await this.redis.keys(`${PREFIX}*`);
+    const keys = await this.redis.keys(`${this.prefix}*`);
     if (keys.length > 0) await this.redis.del(...keys);
-    await this.redis.del(SERVERS_KEY);
+    await this.redis.del(this.serversKey);
   }
 }

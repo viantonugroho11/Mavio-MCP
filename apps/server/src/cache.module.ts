@@ -14,11 +14,16 @@ export const REDIS_SUB = Symbol("REDIS_SUB");
 export const CAPABILITY_CACHE = Symbol("CAPABILITY_CACHE");
 export const INVALIDATION_BUS = Symbol("INVALIDATION_BUS");
 export const NODE_ID = Symbol("NODE_ID");
+export const REGION = Symbol("REGION");
+export function currentRegion(): string {
+  return process.env.MAVIO_REGION ?? "default";
+}
 
 @Global()
 @Module({
   providers: [
     { provide: NODE_ID, useValue: `node-${randomUUID().slice(0, 8)}` },
+    { provide: REGION, useValue: currentRegion() },
     {
       provide: REDIS,
       inject: [MAVIO_CONFIG],
@@ -31,8 +36,9 @@ export const NODE_ID = Symbol("NODE_ID");
     },
     {
       provide: CAPABILITY_CACHE,
-      inject: [REDIS],
-      useFactory: (redis: Redis): CapabilityCache => new CapabilityCache(redis),
+      inject: [REDIS, REGION],
+      useFactory: (redis: Redis, region: string): CapabilityCache =>
+        new CapabilityCache(redis, { region }),
     },
     {
       provide: INVALIDATION_BUS,
@@ -41,7 +47,7 @@ export const NODE_ID = Symbol("NODE_ID");
         new InvalidationBus(pub, sub, nodeId),
     },
   ],
-  exports: [REDIS, CAPABILITY_CACHE, INVALIDATION_BUS, NODE_ID],
+  exports: [REDIS, CAPABILITY_CACHE, INVALIDATION_BUS, NODE_ID, REGION],
 })
 export class CacheModule implements OnModuleDestroy {
   constructor(
