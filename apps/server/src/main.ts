@@ -11,7 +11,9 @@ import { attachWsGateway } from "./ws.gateway.js";
 async function bootstrap(): Promise<void> {
   bootstrapTracing({ serviceName: "mavio-mcp-server", serviceVersion: "0.1.0" });
   const app = await NestFactory.create(AppModule, { bufferLogs: false });
-  app.enableCors({ origin: true });
+  // Reflect the request origin AND allow credentials so the web console can
+  // read /auth/me and send the mavio_sid session cookie cross-origin.
+  app.enableCors({ origin: true, credentials: true });
   const port = Number(process.env.MAVIO_HTTP_PORT ?? 4000);
   await app.listen(port);
   const httpServer = app.getHttpServer() as HttpServer;
