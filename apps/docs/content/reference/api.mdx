@@ -48,12 +48,15 @@ mode.
 
 | Method | Path | Body |
 |---|---|---|
-| POST | `/api/imports/openapi` | `{ id, url?, path?, baseUrl?, workspaceId, projectId }` |
-| POST | `/api/imports/sql` | `{ id, dsn, tables?, readOnly?, workspaceId, projectId }` |
-| POST | `/api/imports/graphql` | `{ id, endpoint, headers?, auth?, selectionDepth? }` |
-| POST | `/api/imports/mcp` | `{ id, transport: stdio\|http\|sse, ... }` |
+| POST | `/api/imports/openapi` | `{ id, url?, path?, baseUrl?, workspaceId, projectId, upstreamOAuthProvider? }` |
+| POST | `/api/imports/sql` | `{ id, dsn, tables?, readOnly?, workspaceId, projectId, upstreamOAuthProvider? }` |
+| POST | `/api/imports/graphql` | `{ id, endpoint, headers?, auth?, selectionDepth?, upstreamOAuthProvider? }` |
+| POST | `/api/imports/mcp` | `{ id, transport: stdio\|http\|sse, name?, upstreamOAuthProvider? }` |
 
-All guarded by `server:write`.
+All guarded by `server:write`. The optional `upstreamOAuthProvider` is stored as
+`metadata.upstreamOAuthProvider`; the router then resolves a per-principal upstream credential
+before dispatch — see [Upstream OAuth](/security/upstream-oauth). The web console exposes it on
+every import tab, including the **MCP** tab (mirror a stdio/http/sse MCP server).
 
 ## Router
 

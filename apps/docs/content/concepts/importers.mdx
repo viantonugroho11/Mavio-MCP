@@ -26,4 +26,9 @@ mavio import graphql --id shopify --endpoint https://shop.example/graphql --auth
 mavio import mcp --id filesystem --stdio "npx -y @modelcontextprotocol/server-filesystem /tmp"
 ```
 
+All four importers are available in the **web console** (Imports page → `OpenAPI` / `SQL` /
+`GraphQL` / `MCP` tabs) as well as the CLI/API. Every import accepts an optional
+`upstreamOAuthProvider` to tag the resulting server for per-principal upstream auth — see
+[Upstream OAuth](/security/upstream-oauth).
+
 See [CLI reference](/reference/cli) for every flag.

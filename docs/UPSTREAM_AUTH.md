@@ -50,7 +50,9 @@ Keycloak client config: enable "Token Exchange", allow client to exchange from y
 
 ## Tag a server to require upstream OAuth
 
-Set `metadata.upstreamOAuthProvider` on the `ServerDescriptor`:
+Set `metadata.upstreamOAuthProvider` either **at import time** — pass `upstreamOAuthProvider` to any
+`/api/imports/*` call, or use the **Upstream OAuth provider** field on the web console's Import page
+(every tab, including the MCP-mirror tab) — or directly on the `ServerDescriptor`:
 
 ```json
 POST /api/servers

@@ -76,10 +76,15 @@ Full-duplex. Client sends JSON-RPC frames; server writes correlated responses. 1
 
 | Method | Path | Guard | Notes |
 |---|---|---|---|
-| POST | `/api/imports/openapi` | `server:write` | `{ id, url?, path?, baseUrl?, workspaceId, projectId }` |
-| POST | `/api/imports/sql` | `server:write` | `{ id, dsn, tables?, readOnly?, workspaceId, projectId }` |
-| POST | `/api/imports/graphql` | `server:write` | `{ id, endpoint, headers?, auth?, selectionDepth? }` |
-| POST | `/api/imports/mcp` | `server:write` | `{ id, transport: stdio|http|sse, ... }` |
+| POST | `/api/imports/openapi` | `server:write` | `{ id, url?, path?, baseUrl?, workspaceId, projectId, upstreamOAuthProvider? }` |
+| POST | `/api/imports/sql` | `server:write` | `{ id, dsn, tables?, readOnly?, workspaceId, projectId, upstreamOAuthProvider? }` |
+| POST | `/api/imports/graphql` | `server:write` | `{ id, endpoint, headers?, auth?, selectionDepth?, upstreamOAuthProvider? }` |
+| POST | `/api/imports/mcp` | `server:write` | `{ id, transport: stdio\|http\|sse, name?, upstreamOAuthProvider? }` |
+
+`upstreamOAuthProvider` (optional) is stored as `metadata.upstreamOAuthProvider` on the
+resulting server descriptor. When set, the router resolves a per-principal upstream credential
+(e.g. RFC 8693 token-exchange to a KrakenD/Keycloak-fronted backend) before every dispatch —
+see [UPSTREAM_AUTH.md](UPSTREAM_AUTH.md). The web console exposes it on every import tab.
 
 ---
 

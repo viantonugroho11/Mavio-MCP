@@ -52,6 +52,14 @@ MAVIO_TOKENX_AUDIENCE=analytics-db
 
 ## Tag a server to require upstream OAuth
 
+Two ways to set `metadata.upstreamOAuthProvider`:
+
+1. **At import time** — pass `upstreamOAuthProvider` to any `/api/imports/*` call, or type it in the
+   **Upstream OAuth provider** field on the web console's Import page (every tab, including MCP).
+   Ideal for a REST/GraphQL backend fronted by KrakenD/Keycloak: import the OpenAPI spec and tag it
+   with the token-exchange provider in one step.
+2. **On a raw descriptor** — set it directly when registering a server:
+
 ```json
 POST /api/servers
 {
