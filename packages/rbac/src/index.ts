@@ -1,19 +1,8 @@
 import type { Principal } from "@mavio/core";
 
-export const Actions = {
-  WorkspaceAdmin: "workspace:admin",
-  ProjectRead: "project:read",
-  ProjectWrite: "project:write",
-  ServerRead: "server:read",
-  ServerWrite: "server:write",
-  ServerInvoke: "server:invoke",
-  ServerAdmin: "server:admin",
-  ToolInvoke: "tool:invoke",
-  PluginInstall: "plugin:install",
-  ConfigWrite: "config:write",
-  AuditRead: "audit:read",
-} as const;
-export type Action = (typeof Actions)[keyof typeof Actions];
+export { Actions } from "./actions.js";
+export type { Action } from "./actions.js";
+import type { Action } from "./actions.js";
 
 export interface ResourceRef {
   workspace?: string;

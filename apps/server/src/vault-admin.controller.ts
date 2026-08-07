@@ -6,7 +6,7 @@ import { ApiKeyGuard } from "./auth.guard.js";
 import { RbacGuard, RequirePermission } from "./rbac.guard.js";
 import { REDIS } from "./cache.module.js";
 import { AuditService } from "./audit.module.js";
-import { UPSTREAM_CREDS_REPO } from "./upstream-auth.module.js";
+import { UPSTREAM_CREDS_REPO } from "./upstream-auth.tokens.js";
 
 export const VAULT_RELOAD_CHANNEL = "mavio:vault:keyring:reload";
 

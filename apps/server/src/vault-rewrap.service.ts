@@ -1,6 +1,6 @@
 import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import type { PrincipalUpstreamCredentialsRepository } from "@mavio/upstream-auth";
-import { UPSTREAM_CREDS_REPO } from "./upstream-auth.module.js";
+import { UPSTREAM_CREDS_REPO } from "./upstream-auth.tokens.js";
 
 const DEFAULT_INTERVAL_MS = 60 * 60 * 1000; // 1h
 const DEFAULT_BATCH = 100;

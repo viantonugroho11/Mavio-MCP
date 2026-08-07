@@ -11,7 +11,7 @@ import { OIDC_CLIENT_CACHE, SESSION_STORE, SESSION_TTL } from "./session.module.
 import { RBAC_REPO } from "./rbac.module.js";
 import { AuditService, clientIp } from "./audit.module.js";
 import type { PrincipalUpstreamCredentialsRepository } from "@mavio/upstream-auth";
-import { UPSTREAM_CREDS_REPO } from "./upstream-auth.module.js";
+import { UPSTREAM_CREDS_REPO } from "./upstream-auth.tokens.js";
 
 const COOKIE_NAME = "mavio_sid";
 

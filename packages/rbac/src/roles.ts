@@ -1,4 +1,5 @@
-import { Actions, type Role } from "./index.js";
+import { Actions } from "./actions.js";
+import type { Role } from "./index.js";
 
 export const BUILTIN_ROLES: Role[] = [
   {

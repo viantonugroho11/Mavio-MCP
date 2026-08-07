@@ -26,9 +26,16 @@ import type { MavioMetrics } from "@mavio/observability";
 import { REGISTRY_DB } from "./registry.module.js";
 import { METRICS } from "./observability.module.js";
 
-export const UPSTREAM_PROVIDERS = Symbol("UPSTREAM_PROVIDERS");
-export const UPSTREAM_TOKEN_SERVICE = Symbol("UPSTREAM_TOKEN_SERVICE");
-export const UPSTREAM_CREDS_REPO = Symbol("UPSTREAM_CREDS_REPO");
+export {
+  UPSTREAM_PROVIDERS,
+  UPSTREAM_TOKEN_SERVICE,
+  UPSTREAM_CREDS_REPO,
+} from "./upstream-auth.tokens.js";
+import {
+  UPSTREAM_PROVIDERS,
+  UPSTREAM_TOKEN_SERVICE,
+  UPSTREAM_CREDS_REPO,
+} from "./upstream-auth.tokens.js";
 
 /**
  * In-memory registry of upstream credential providers. Populated at boot

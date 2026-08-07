@@ -8,11 +8,8 @@ import { resolvePrincipalFromRequest } from "./principal-resolver.js";
 import { SessionStore } from "./session.store.js";
 import { SESSION_STORE } from "./session.module.js";
 import { AuditService, clientIp } from "./audit.module.js";
-import {
-  UPSTREAM_CREDS_REPO,
-  UPSTREAM_PROVIDERS,
-  UpstreamProviderRegistry,
-} from "./upstream-auth.module.js";
+import { UPSTREAM_CREDS_REPO, UPSTREAM_PROVIDERS } from "./upstream-auth.tokens.js";
+import { UpstreamProviderRegistry } from "./upstream-auth.module.js";
 
 /**
  * Consent flow for per-principal upstream OAuth providers (ADR-018).
