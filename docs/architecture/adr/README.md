@@ -25,6 +25,7 @@ Every non-trivial architectural decision lives here as an immutable, numbered re
 | [ADR-017](ADR-017-client-connection-model.md) | Client connection model — Router-only surface | Accepted |
 | [ADR-018](ADR-018-per-principal-upstream-oauth-vault.md) | Per-principal upstream OAuth token vault + injection middleware | Proposed |
 | [ADR-019](ADR-019-vault-key-rotation.md) | Vault key-encryption-key rotation (envelope encryption) | Proposed |
+| [ADR-020](ADR-020-trace-inspector.md) | Trace Inspector — per-invoke transform tracing, replay, schema-drift | Proposed |
 
 ## Template
 New ADRs must follow [`ADR-000-template.md`](ADR-000-template.md).
