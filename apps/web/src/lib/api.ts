@@ -70,8 +70,18 @@ export async function importOpenApi(body: {
 
 export type McpTransport =
   | { type: "stdio"; command: string; args?: string[] }
-  | { type: "http"; baseUrl: string; auth?: { type: "bearer"; secretRef: string } }
-  | { type: "sse"; url: string; auth?: { type: "bearer"; secretRef: string } };
+  | {
+      type: "http";
+      baseUrl: string;
+      headers?: Record<string, string>;
+      auth?: { type: "bearer"; secretRef: string };
+    }
+  | {
+      type: "sse";
+      url: string;
+      headers?: Record<string, string>;
+      auth?: { type: "bearer"; secretRef: string };
+    };
 
 export async function importMcp(body: {
   id: string;

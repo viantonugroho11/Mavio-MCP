@@ -31,4 +31,25 @@ All four importers are available in the **web console** (Imports page → `OpenA
 `upstreamOAuthProvider` to tag the resulting server for per-principal upstream auth — see
 [Upstream OAuth](/security/upstream-oauth).
 
+### MCP-mirror over HTTP/SSE with custom headers
+
+The MCP tab (and `POST /api/imports/mcp`) accepts arbitrary request **headers** for `http`/`sse`
+transports — the same shape as a standard MCP client config. To mirror a header-authenticated
+server:
+
+```json
+{
+  "id": "workbench",
+  "transport": {
+    "type": "http",
+    "baseUrl": "https://workbench-uat.amartha.id/mcp",
+    "headers": { "x-workbench-api-key": "YOUR_API_KEY" }
+  }
+}
+```
+
+Headers are sent on every dispatch. For a rotating secret prefer the `auth` bearer field
+(`secret://ENV`, resolved from env, never persisted); header values are stored as-is on the
+descriptor.
+
 See [CLI reference](/reference/cli) for every flag.

@@ -203,6 +203,7 @@ function McpForm({ pending, onSubmit }: SubmitProps): JSX.Element {
   const [kind, setKind] = useState<"stdio" | "http" | "sse">("stdio");
   const [command, setCommand] = useState("npx -y @modelcontextprotocol/server-filesystem /tmp");
   const [endpoint, setEndpoint] = useState("");
+  const [headersText, setHeadersText] = useState("");
   const [secretRef, setSecretRef] = useState("");
   const [upstream, setUpstream] = useState("");
 
@@ -216,13 +217,21 @@ function McpForm({ pending, onSubmit }: SubmitProps): JSX.Element {
         void onSubmit(async () => {
           let transport: McpTransport;
           const auth = secretRef ? ({ type: "bearer", secretRef } as const) : undefined;
+          let headers: Record<string, string> | undefined;
+          if (headersText.trim()) {
+            try {
+              headers = JSON.parse(headersText) as Record<string, string>;
+            } catch {
+              throw new Error("Headers must be valid JSON, e.g. {\"x-api-key\":\"…\"}");
+            }
+          }
           if (kind === "stdio") {
             const parts = command.trim().split(/\s+/);
             transport = { type: "stdio", command: parts[0], args: parts.slice(1) };
           } else if (kind === "http") {
-            transport = { type: "http", baseUrl: endpoint, auth };
+            transport = { type: "http", baseUrl: endpoint, headers, auth };
           } else {
-            transport = { type: "sse", url: endpoint, auth };
+            transport = { type: "sse", url: endpoint, headers, auth };
           }
           const r = await importMcp({
             id,
@@ -253,7 +262,10 @@ function McpForm({ pending, onSubmit }: SubmitProps): JSX.Element {
       ) : (
         <>
           <Field label={kind === "http" ? "Base URL" : "SSE URL"} span>
-            <input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} required placeholder="https://example.internal/mcp" className={inputCls} />
+            <input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} required placeholder="https://workbench-uat.amartha.id/mcp" className={inputCls} />
+          </Field>
+          <Field label="Custom headers (JSON, optional)" span>
+            <textarea value={headersText} onChange={(e) => setHeadersText(e.target.value)} rows={3} placeholder={'{ "x-workbench-api-key": "YOUR_API_KEY" }'} className={`${inputCls} resize-y`} />
           </Field>
           <Field label="Bearer secret ref (optional)" span>
             <input value={secretRef} onChange={(e) => setSecretRef(e.target.value)} placeholder="secret://SEARCH_TOKEN" className={inputCls} />
