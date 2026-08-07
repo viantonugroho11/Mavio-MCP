@@ -1,0 +1,84 @@
+---
+title: HTTP API
+---
+
+# HTTP API reference
+
+All admin endpoints (`/api/*`) require RBAC. Send `Authorization: Bearer <api-key>` or a `mavio_sid`
+cookie from an OIDC login. `/mcp` and `/mcp/sse` accept unauthenticated MCP frames only in dev-open
+mode.
+
+```json
+// Non-MCP error shape
+{ "statusCode": 403, "error": "authz denied: missing tool:invoke on server=petstore" }
+
+// MCP error shape (JSON-RPC 2.0)
+{ "jsonrpc": "2.0", "id": 2, "error": { "code": -32001, "message": "server not found: petstore" } }
+```
+
+| Code | Meaning |
+|---|---|
+| `-32001` | Server / tool not found |
+| `-32003` | RBAC denied |
+| `-32010` | Circuit breaker open |
+| `-32011` | Rate limit exceeded |
+| `-32020` | Upstream consent required |
+| `-32000` | Unexpected upstream error |
+
+## MCP data plane
+
+| Route | Notes |
+|---|---|
+| `POST /mcp` | Any MCP JSON-RPC frame. `?sid=<uuid>` fans onto an SSE session (responds `202`). |
+| `GET /mcp/sse` | First frame `event: endpoint` / `data: /mcp?sid=<uuid>`; then `message` / `notification` / 15s keep-alive. |
+| `WS /mcp/ws` | Full-duplex; correlated responses; 15s ping. |
+
+## Servers
+
+| Method | Path | Guard |
+|---|---|---|
+| GET | `/api/servers` | `server:read` |
+| GET | `/api/servers/:id` | `server:read` |
+| GET | `/api/servers/:id/capabilities` | `server:read` |
+| POST | `/api/servers` | `server:write` |
+| DELETE | `/api/servers/:id` | `server:write` |
+| GET | `/api/servers/:id/snapshots` | `server:read` |
+
+## Imports
+
+| Method | Path | Body |
+|---|---|---|
+| POST | `/api/imports/openapi` | `{ id, url?, path?, baseUrl?, workspaceId, projectId }` |
+| POST | `/api/imports/sql` | `{ id, dsn, tables?, readOnly?, workspaceId, projectId }` |
+| POST | `/api/imports/graphql` | `{ id, endpoint, headers?, auth?, selectionDepth? }` |
+| POST | `/api/imports/mcp` | `{ id, transport: stdio\|http\|sse, ... }` |
+
+All guarded by `server:write`.
+
+## Router
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/router/capabilities` | Cached list of `serverId.toolName` |
+| POST | `/api/router/invalidate` | Bust the capability cache (`server:admin`) |
+
+## Plugins & Marketplace
+
+| Method | Path | Guard |
+|---|---|---|
+| GET | `/api/plugins` | `plugin:install` |
+| POST | `/api/plugins/:name/enable` | `plugin:install` |
+| POST | `/api/plugins/:name/disable` | `plugin:install` |
+| GET | `/api/marketplace?q=` | `plugin:install` |
+| GET | `/api/marketplace/get?name=` | `plugin:install` (returns sha256 + signature) |
+
+## Observability
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/metrics` | Prometheus text exposition (`Cache-Control: no-store`, unauthenticated) |
+| GET | `/healthz` | Liveness |
+| GET | `/readyz` | Readiness (DB + Redis) |
+
+See [Auth](/security/auth), [RBAC](/security/rbac), and [Playground](/guides/playground) for those
+endpoint groups.

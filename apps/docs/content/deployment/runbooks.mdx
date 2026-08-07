@@ -1,0 +1,13 @@
+---
+title: Runbooks
+---
+
+# Runbooks
+
+| ID | Scenario | Behavior & response |
+|---|---|---|
+| **RB-001** | Redis outage | Router keeps working with degraded cache (Postgres fallback); logs warnings; auto-recovers when Redis is reachable. |
+| **RB-002** | Postgres outage | Server returns 503 on `/readyz`; the load balancer removes it. No writes are lost — none are accepted. |
+| **RB-003** | Certificate rotation (mTLS) | Rolling restart with the new secret mounted; existing WS/SSE sessions terminate cleanly on `SIGTERM`. |
+
+Full runbook content lives in `docs/architecture/runbooks/` in the repository.

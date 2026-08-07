@@ -1,0 +1,39 @@
+---
+title: RBAC
+---
+
+# RBAC
+
+Actions defined in `@mavio/rbac`:
+
+```
+workspace:admin · project:read · project:write · server:read · server:write
+server:invoke · server:admin · tool:invoke · plugin:install
+config:write · audit:read
+```
+
+**Scopes:** `workspace` · `project` · `server` · `tool`.
+**Precedence:** explicit deny > explicit allow > inherited allow. Wildcards work on both the action
+and any scope field.
+
+## Policy engines
+
+Chosen by `MAVIO_RBAC_ENGINE`:
+
+| Engine | Value | Source |
+|---|---|---|
+| Builtin (default) | `builtin` | `BuiltinRbacEngine` from `@mavio/rbac` |
+| OPA | `opa` | `OpaPolicyEngine` (HTTP to the OPA data API) |
+| Cedar | `cedar` | `CedarSidecarPolicyEngine` (HTTP to a Cedar agent) |
+
+Remote engines **fail closed** with a 2s default `AbortController` timeout.
+
+## Admin API
+
+| Method | Path | Guard |
+|---|---|---|
+| GET/POST | `/api/rbac/principals` | `workspace:admin` |
+| POST | `/api/rbac/principals/:id/keys` | `workspace:admin` (returns `{ apiKey }` once) |
+| GET | `/api/rbac/roles` | `workspace:admin` |
+| GET/POST | `/api/rbac/assignments` | `workspace:admin` |
+| DELETE | `/api/rbac/assignments/:id` | `workspace:admin` |

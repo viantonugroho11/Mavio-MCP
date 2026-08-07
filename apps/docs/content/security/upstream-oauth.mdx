@@ -1,0 +1,107 @@
+---
+title: Upstream OAuth Vault
+---
+
+import { Callout } from 'nextra/components'
+
+# Upstream OAuth — per-principal credential vault
+
+Mavio ships a per-principal upstream credential vault so a single MCP endpoint can call Slack as
+Alice, Notion as Alice, and a Keycloak-fronted analytics DB as Alice — all from the same
+authenticated Mavio session.
+
+## Concepts
+
+- **Provider** — knows how to obtain and refresh an upstream token for one SaaS or IdP. Built-in:
+  `slack`, generic `oauth2-authcode-pkce`, and RFC 8693 `token-exchange` (Keycloak, KrakenD).
+- **Vault** — Postgres table `principal_upstream_credentials`, envelope-encrypted (AES-256-GCM
+  per-row DEK, KEK selected from an ordered keyring).
+- **Consent flow** — `GET /auth/upstream/:providerId/login` (requires a Mavio session) → provider IdP
+  → `GET /auth/upstream/:providerId/callback` → credential stored → 302 to `return_to`.
+- **Middleware** — `RouterService.callTool` resolves a credential before dispatch. A missing one
+  returns JSON-RPC `-32020` with `data.consentUrl`; non-interactive providers (token-exchange) mint
+  automatically.
+
+## Setup
+
+Always required:
+
+```bash
+MAVIO_VAULT_KEYRING="v1:$(openssl rand -base64 32)"   # first entry is primary
+MAVIO_PUBLIC_BASE_URL=https://mcp.example.com          # emitted in consentUrl
+```
+
+Slack (per-user `xoxp` tokens):
+
+```bash
+MAVIO_SLACK_CLIENT_ID=...
+MAVIO_SLACK_CLIENT_SECRET=...
+MAVIO_SLACK_USER_SCOPES=chat:write,channels:read,users:read
+# Slack redirect URL: https://mcp.example.com/auth/upstream/slack/callback
+```
+
+Keycloak / KrakenD token-exchange:
+
+```bash
+MAVIO_TOKENX_ID=keycloak-analytics
+MAVIO_TOKENX_ENDPOINT=https://keycloak/realms/mavio/protocol/openid-connect/token
+MAVIO_TOKENX_CLIENT_ID=mavio-server
+MAVIO_TOKENX_CLIENT_SECRET=...
+MAVIO_TOKENX_AUDIENCE=analytics-db
+```
+
+## Tag a server to require upstream OAuth
+
+```json
+POST /api/servers
+{
+  "id": "slack",
+  "name": "Slack (per-user)",
+  "sourceType": "native",
+  "transport": { "type": "stdio", "command": "npx",
+                 "args": ["-y", "@modelcontextprotocol/server-slack"] },
+  "metadata": { "upstreamOAuthProvider": "slack" }
+}
+```
+
+## User flow (Slack, per-user)
+
+1. Alice logs into Mavio via existing OIDC — session cookie set, IdP tokens persisted under
+   `mavio-session`.
+2. Alice invokes `slack.post_message`. Router sees `upstreamOAuthProvider = "slack"`, checks the
+   vault — nothing.
+3. Router returns `-32020` with `data.consentUrl`. Console redirects Alice to Slack's authorize
+   screen.
+4. Slack redirects to the callback; the server exchanges the code, encrypts + stores the token, 302s
+   back.
+5. Console retries the invoke; the router injects `SLACK_BOT_TOKEN=xoxp-…` into the child env and
+   Slack responds as Alice.
+6. Tokens refresh automatically within 60s of expiry; a failed refresh returns another `-32020`.
+
+## Admin operations
+
+```bash
+mavio upstream list     --principal alice-id --key $KEY   # metadata only, never raw tokens
+mavio upstream revoke   --principal alice-id --provider slack --key $KEY
+mavio upstream reconsent --principal alice-id --provider slack --key $KEY
+```
+
+All upstream-token endpoints require `workspace:admin`.
+
+## Key rotation
+
+<Callout type="info">
+  Local keyring: prepend a new primary via `POST /api/admin/vault/rotate`, watch old-key rows drop on
+  `/api/admin/vault/status`, then `POST /api/admin/vault/retire` once
+  `mavio_vault_rows_by_key{key_id="v1"}=0`. With the Vault Transit backend
+  (`MAVIO_VAULT_KEK=vault-transit`), rotate through Vault's own control plane.
+</Callout>
+
+## Threat model
+
+| Concern | Mitigation |
+|---|---|
+| Vault DB dump leaks tokens | AES-256-GCM at rest; KEK never in DB (env or KMS) |
+| KEK leak | Rotate via keyring prepend + hot reload; retire old key after lazy rewrap |
+| Cross-principal token access | Row-level `principal_id` binding; admin API is metadata-only |
+| Refresh silent-failure | Failed refresh → revoke local + `consent_required` to the caller |

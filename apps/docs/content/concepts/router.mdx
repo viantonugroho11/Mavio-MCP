@@ -1,0 +1,33 @@
+---
+title: Router
+---
+
+import { Callout } from 'nextra/components'
+
+# Router
+
+- **Namespacing.** Every tool is `serverId.toolName`; the router routes by prefix.
+- **Capability cache.** Redis-backed; TTL 300s; keys namespaced by `MAVIO_REGION`.
+- **Circuit breaker.** Per-`serverId` closed/open/half-open (`failureThreshold=5`, `resetMs=30000`,
+  `halfOpenMaxCalls=1`). Open state returns JSON-RPC `-32010`.
+- **Per-server rate limit.** Redis token bucket keyed by `serverId+principal.id`; driven by
+  `descriptor.metadata.rateLimitRpm`. JSON-RPC `-32011` when exceeded.
+- **Region routing.** `MAVIO_REGION` filters servers whose `metadata.region` is a different region;
+  region-untagged servers stay globally routable.
+
+<Callout type="info">
+  `RouterService.callTool` runs the upstream OAuth vault lookup before dispatch. A missing
+  credential returns JSON-RPC `-32020` with a `data.consentUrl` so the console can redirect the user
+  mid-invocation. See [Upstream OAuth](/security/upstream-oauth).
+</Callout>
+
+## JSON-RPC error codes
+
+| Code | Meaning |
+|---|---|
+| `-32001` | Server / tool not found |
+| `-32003` | RBAC denied |
+| `-32010` | Circuit breaker open |
+| `-32011` | Rate limit exceeded |
+| `-32020` | Upstream consent required (carries `data.consentUrl`) |
+| `-32000` | Unexpected upstream error |

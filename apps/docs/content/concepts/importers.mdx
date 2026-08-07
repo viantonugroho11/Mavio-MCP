@@ -1,0 +1,29 @@
+---
+title: Importers
+---
+
+# Importers — turn anything into MCP
+
+| Source | Package | Endpoint / CLI |
+|---|---|---|
+| OpenAPI (v3) | `@mavio/import-openapi` | `POST /api/imports/openapi` · `mavio import openapi` |
+| SQL (Postgres) | `@mavio/import-sql` | `POST /api/imports/sql` · `mavio import sql` |
+| GraphQL | `@mavio/import-graphql` | `POST /api/imports/graphql` · `mavio import graphql` |
+| Existing MCP server | `@mavio/import-mcp` | `POST /api/imports/mcp` · `mavio import mcp` |
+
+- **OpenAPI** — pulls operations, resolves `$ref`, maps parameters to a JSON-Schema `inputSchema`.
+- **SQL** — introspects tables/columns/PK/FK; optional allowlist; read-only by default. Every table
+  becomes one MCP tool (`analytics.select_events`); args map to `WHERE` clauses.
+- **GraphQL** — introspection with `inputFields`, `enumValues`, deprecation flags; recursive
+  `INPUT_OBJECT` expansion (cycle-guarded, depth 3); auto scalar+enum leaf selection.
+- **MCP-mirror** — opens a `stdio`/`http`/`sse` transport, sends `initialize` + `tools/list`, and
+  snapshots the result as a Mavio-managed server.
+
+```bash
+mavio import openapi --id petstore --url https://petstore3.swagger.io/api/v3/openapi.json
+mavio import sql --id analytics --dsn postgres://reader:pw@wh:5432/analytics --tables events,users
+mavio import graphql --id shopify --endpoint https://shop.example/graphql --auth secret://SHOP_TOKEN
+mavio import mcp --id filesystem --stdio "npx -y @modelcontextprotocol/server-filesystem /tmp"
+```
+
+See [CLI reference](/reference/cli) for every flag.

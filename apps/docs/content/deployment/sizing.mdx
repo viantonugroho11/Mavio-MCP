@@ -1,0 +1,24 @@
+---
+title: Sizing & HA
+---
+
+# Sizing & HA
+
+Rough starting points — real numbers depend on tool response sizes and upstream latency. Watch
+`mavio_router_request_duration_seconds` p95/p99.
+
+| Load | Replicas | CPU / pod | Memory / pod | Postgres | Redis |
+|---|---|---|---|---|---|
+| Dev | 1 | 200m | 256Mi | Local | Local |
+| Small team (< 100 rpm) | 2 | 500m | 512Mi | db.t4g.small | cache.t4g.small |
+| Team (< 1k rpm) | 3–5 | 1 | 1Gi | db.m5.large | cache.m5.large |
+| Enterprise (> 5k rpm) | 8+, HPA | 1–2 | 2Gi | db.m5.2xlarge + RO replica | Redis cluster |
+
+## HA & multi-region
+
+- Run ≥ 2 replicas per region behind the load balancer. Postgres-backed sessions mean any pod serves
+  any request.
+- For multi-region, set `MAVIO_REGION` per deployment and tag servers with `metadata.region`. Route
+  DNS/GSLB to the nearest region. Regions can share a Redis or each run their own.
+- Postgres — primary + read replica in the primary region; async replica in secondary regions.
+  Cross-region writes still hit the primary.

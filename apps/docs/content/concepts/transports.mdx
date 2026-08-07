@@ -1,0 +1,27 @@
+---
+title: Transports
+---
+
+# Transports
+
+## Downstream (Mavio → MCP clients)
+
+| Route | Transport | Notes |
+|---|---|---|
+| `POST /mcp` | HTTP-JSON | Default; accepts `?sid=` to fan out onto SSE |
+| `GET /mcp/sse` | Server-Sent Events | Emits `event: endpoint` first; per-call fanout via `sid` |
+| `WS /mcp/ws` | WebSocket | Full-duplex; 15s ping keep-alive |
+
+## Upstream (Mavio → backend servers)
+
+From `@mavio/transport`:
+
+- `stdio` — child process
+- `http` — HTTP-JSON to a base URL
+- `sse` — classic MCP HTTP+SSE (endpoint + response frames)
+- `ws` — WebSocket (`WsTransport` / `WsSession`)
+- `sql` — direct Postgres dispatch (`SqlDispatcher`)
+- `graphql` — direct GraphQL dispatch (`GraphqlDispatcher`)
+
+All transports support a `bearerHeaderFromAuth({ type: "bearer", secretRef: "secret://ENV_NAME" })`
+pattern — the env var is resolved at dispatch time, and the secret is never persisted.

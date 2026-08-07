@@ -1,0 +1,113 @@
+---
+title: Installation
+---
+
+import { Callout, Tabs } from 'nextra/components'
+
+# Installation
+
+Four supported paths, ordered by effort.
+
+## Prerequisites
+
+| Runtime | Version | Why |
+|---|---|---|
+| Node.js | ≥ 20.11 | ES2022 + native `crypto.verify("ed25519", …)` |
+| pnpm | 9.x | Workspace protocol |
+| PostgreSQL | ≥ 14 | JSONB + `updated_at now()` triggers |
+| Redis | ≥ 7 | Streams for the InvalidationBus |
+| Docker | ≥ 24 | Compose v2 |
+| Kubernetes | ≥ 1.27 | ServiceMonitor CRD (if used) |
+
+## 1. Local dev (fastest)
+
+```bash
+git clone https://github.com/viantonugroho11/Mavio-MCP.git
+cd Mavio-MCP
+pnpm install && pnpm build
+
+docker compose up -d                                # Postgres + Redis
+cp .env.example .env && export $(grep -v "^#" .env | xargs)
+
+pnpm --filter @mavio/registry migrate               # apply schema
+cp mavio.config.example.yaml mavio.config.yaml
+pnpm --filter @mavio/server start                   # http://localhost:4000
+```
+
+## 2. Docker image (single container)
+
+```bash
+docker build -f deploy/docker/Dockerfile -t mavio-mcp:1.2.0 .
+
+docker run --rm -p 4000:4000 \
+  -e MAVIO_HTTP_PORT=4000 \
+  -e MAVIO_CONFIG_PATH=/app/mavio.config.yaml \
+  -e MAVIO_ADMIN_API_KEY=change-me \
+  -v $(pwd)/mavio.config.yaml:/app/mavio.config.yaml:ro \
+  mavio-mcp:1.2.0
+```
+
+## 3. Docker Compose (full stack)
+
+`docker-compose.yaml` provisions Postgres + Redis for dev. Add the server:
+
+```yaml
+services:
+  server:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+    depends_on: [postgres, redis]
+    ports: ["4000:4000"]
+    environment:
+      MAVIO_CONFIG_PATH: /app/mavio.config.yaml
+      MAVIO_ADMIN_API_KEY: ${MAVIO_ADMIN_API_KEY}
+      POSTGRES_URL: postgres://mavio:mavio@postgres:5432/mavio
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ./mavio.config.yaml:/app/mavio.config.yaml:ro
+```
+
+```bash
+docker compose up -d --build
+```
+
+## 4. Kubernetes — Helm
+
+```bash
+helm dependency update deploy/helm/mavio-mcp
+helm upgrade --install mavio deploy/helm/mavio-mcp \
+  --namespace mavio --create-namespace \
+  --set image.tag=1.2.0 \
+  --set env.MAVIO_ADMIN_API_KEY=<yours> \
+  --set postgres.url=postgres://... \
+  --set redis.url=redis://... \
+  --set serviceMonitor.enabled=true
+```
+
+Chart includes Deployment · Service · Ingress · ConfigMap · Secret · ServiceAccount · ServiceMonitor.
+Pod security defaults: `runAsNonRoot: true`, `readOnlyRootFilesystem: true`, `capabilities.drop: [ALL]`.
+
+## 5. Raw K8s manifests
+
+```bash
+kubectl apply -f deploy/k8s/namespace.yaml
+kubectl apply -f deploy/k8s/configmap.yaml
+kubectl apply -f deploy/k8s/secret.yaml
+kubectl apply -f deploy/k8s/deployment.yaml
+kubectl apply -f deploy/k8s/service.yaml
+kubectl apply -f deploy/k8s/ingress.yaml           # optional
+```
+
+## Post-install
+
+<Callout type="error">
+  **Set `MAVIO_ADMIN_API_KEY`.** It protects `/api/*`. If unset, the server runs in
+  **dev-open mode** — do NOT expose that to the internet.
+</Callout>
+
+- **Configure OIDC** (optional): `PUT /api/auth/providers/:id` with issuer + client id/secret, then
+  hit `GET /auth/:providerId/login`.
+- **Enable metrics.** Prometheus scrape annotations default on; ServiceMonitor is opt-in.
+
+Continue with **[Guides](/guides/usage)** for the first import.

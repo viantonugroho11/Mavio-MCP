@@ -1,0 +1,74 @@
+---
+title: Helm & Kubernetes
+---
+
+# Helm & Kubernetes
+
+Chart: `deploy/helm/mavio-mcp/`.
+
+```bash
+helm upgrade --install mavio deploy/helm/mavio-mcp \
+  --namespace mavio --create-namespace \
+  --values my-values.yaml
+```
+
+## Key values.yaml
+
+```yaml
+image:
+  repository: ghcr.io/your-org/mavio-mcp
+  tag: "1.2.0"
+replicaCount: 3
+
+env:
+  MAVIO_ADMIN_API_KEY: <inject-via-secret>
+  MAVIO_REGION: eu-west
+  MAVIO_TRUSTED_PROXY_ENABLED: "1"
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability:4318
+
+postgres:
+  url: postgres://mavio:pw@pg.svc:5432/mavio
+redis:
+  url: redis://redis.svc:6379
+
+ingress:
+  enabled: true
+  host: mcp.example.com
+  tls: { enabled: true, secretName: mavio-tls }
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+
+resources:
+  requests: { cpu: 200m, memory: 256Mi }
+  limits:   { cpu: 1,    memory: 512Mi }
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+securityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities: { drop: [ALL] }
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 70
+```
+
+Chart includes Deployment · Service · Ingress · ConfigMap · Secret · ServiceAccount · ServiceMonitor.
+
+## Rollback
+
+```bash
+helm history mavio -n mavio
+helm rollback mavio <revision> -n mavio
+```
+
+## Raw K8s
+
+For non-Helm shops, `deploy/k8s/*.yaml` mirrors the chart output — apply and edit.

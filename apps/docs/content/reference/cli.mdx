@@ -1,0 +1,82 @@
+---
+title: CLI
+---
+
+# CLI reference — `mavio`
+
+`mavio` wraps the admin HTTP API. Build once with `pnpm build`, then:
+
+```bash
+alias mavio="node $(pwd)/apps/cli/dist/index.js"
+```
+
+Every subcommand accepts:
+
+```
+--api <url>   Admin API base URL (default: http://localhost:4000)
+--key <key>   Admin API key (or env MAVIO_ADMIN_API_KEY)
+```
+
+## Commands
+
+| Command | Purpose |
+|---|---|
+| `mavio init` | Scaffold a `mavio.config.yaml` in the current directory |
+| `mavio serve` | Start the server (`-c <config>`, `-p <port>`) |
+| `mavio servers list \| get <id> \| rm <id>` | Manage registered servers |
+| `mavio import openapi` | Import an OpenAPI v3 document |
+| `mavio import sql` | Import a Postgres schema |
+| `mavio import graphql` | Import a GraphQL endpoint |
+| `mavio import mcp` | Mirror an existing MCP server |
+| `mavio plugin list \| enable \| disable <name>` | Manage plugins |
+| `mavio rbac …` | Principals, keys, assignments |
+| `mavio upstream list \| revoke \| reconsent` | Upstream OAuth vault ops |
+
+### `mavio import openapi`
+
+```
+--id <serverId>       Required
+--url <url>           OpenAPI document URL
+--path <file>         OpenAPI document local path
+--base-url <url>      Override baseUrl if the spec has no servers[]
+--workspace <ws>      (default: default)
+--project <proj>      (default: sandbox)
+```
+
+### `mavio import sql`
+
+```
+--id <serverId>
+--dsn <postgres://…>
+--tables <a,b,c>      Comma-separated allowlist (default: all)
+--read-only           Read-only mode (default: true)
+```
+
+### `mavio import graphql`
+
+```
+--id <serverId>
+--endpoint <url>
+--auth <secret://ENV>       Bearer secret ref
+--selection-depth <n>       Leaf-select depth (default: 2, max: 4)
+```
+
+### `mavio import mcp`
+
+```
+--id <serverId>
+--stdio <cmd>         Space-separated argv
+--http  <url>         HTTP transport base URL
+--sse   <url>         SSE transport URL
+--auth  <secret://ENV>  Bearer for http/sse
+```
+
+Exactly one of `--stdio`, `--http`, `--sse`.
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Success |
+| 1 | HTTP error from the admin API |
+| 2 | Argument validation error |

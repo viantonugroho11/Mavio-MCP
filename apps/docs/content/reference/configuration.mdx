@@ -1,0 +1,98 @@
+---
+title: Configuration
+---
+
+# Configuration
+
+Two sources of truth:
+
+1. **`mavio.config.yaml`** — Postgres/Redis URLs, router tuning. Loaded once at boot.
+2. **Environment variables** — everything security-sensitive and every feature flag.
+
+**Precedence:** env var → `mavio.config.yaml` → compile-time default. Env always wins.
+
+## mavio.config.yaml
+
+```yaml
+db:
+  url: postgres://mavio:mavio@localhost:5432/mavio
+cache:
+  url: redis://localhost:6379
+router:
+  circuitBreaker:
+    failureThreshold: 5
+    resetMs: 30000
+    halfOpenMaxCalls: 1
+  capabilityTtlSeconds: 300     # overrides default 300s
+logging:
+  level: info                   # error | warn | info | debug
+```
+
+## Environment variables
+
+### Core
+
+| Var | Default | Purpose |
+|---|---|---|
+| `MAVIO_HTTP_PORT` | `4000` | HTTP listen port |
+| `MAVIO_CONFIG_PATH` | `./mavio.config.yaml` | Path to config YAML |
+| `MAVIO_ADMIN_API_KEY` | *unset* | Bearer token unlocking `/api/*`. **Set in production.** |
+| `MAVIO_REGION` | *unset* | Region name; scopes cache keys + filters the server list |
+
+### External registry
+
+| Var | Default | Purpose |
+|---|---|---|
+| `MAVIO_EXTERNAL_REGISTRY` | *unset* | `etcd` or `consul` |
+| `MAVIO_EXTERNAL_REGISTRY_ENDPOINT` | — | Required when enabled |
+| `MAVIO_EXTERNAL_REGISTRY_PREFIX` | `/mavio/servers/` | KV prefix |
+| `MAVIO_EXTERNAL_REGISTRY_TOKEN` | *unset* | etcd bearer / Consul ACL |
+| `MAVIO_EXTERNAL_REGISTRY_INTERVAL_MS` | `30000` | Poll interval |
+
+### RBAC engine
+
+| Var | Default | Purpose |
+|---|---|---|
+| `MAVIO_RBAC_ENGINE` | `builtin` | `builtin` · `opa` · `cedar` |
+| `MAVIO_RBAC_ENGINE_URL` | — | Required for `opa` / `cedar` |
+| `MAVIO_RBAC_ENGINE_TOKEN` | *unset* | Optional bearer |
+
+### Federated identity
+
+| Var | Default | Purpose |
+|---|---|---|
+| `MAVIO_TRUSTED_PROXY_ENABLED` | `0` | Trust `X-Auth-*` headers. **Only behind a validating proxy.** |
+| `MAVIO_MTLS_ENABLED` | `0` | Read peer cert (needs HTTPS + `requestCert: true`) |
+| `MAVIO_MTLS_WORKSPACE` | `default` | Workspace stamped on mTLS principals |
+
+### Observability
+
+| Var | Default | Purpose |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | *unset* | Enables OTLP HTTP exporter |
+| `OTEL_SERVICE_NAME` | `mavio-mcp-server` | Otel resource name |
+| `MAVIO_OTEL_DEBUG` | `0` | Also emit spans to stdout |
+
+### Marketplace & Vault
+
+| Var | Default | Purpose |
+|---|---|---|
+| `MAVIO_MARKETPLACE_URL` | *unset* | Enables `/api/marketplace` |
+| `MAVIO_MARKETPLACE_PUBKEY_PEM` | *unset* | Ed25519 PEM for signature verification |
+| `MAVIO_VAULT_KEYRING` | *unset* | `v1:<base64-32B>` — first entry primary |
+| `MAVIO_VAULT_KEK` | `keyring` | `keyring` or `vault-transit` |
+| `MAVIO_PUBLIC_BASE_URL` | *unset* | Emitted in `consentUrl` |
+
+## Server descriptor metadata
+
+| Field | Type | Purpose |
+|---|---|---|
+| `region` | string | Restricts routing to matching `MAVIO_REGION` |
+| `rateLimitRpm` | number | Per-server RPM budget per `(server, principal)` |
+| `upstreamOAuthProvider` | string | Requires a per-principal upstream credential |
+| Any user field | any | Round-tripped as-is |
+
+## Secret references
+
+Any `secretRef: "secret://ENV_NAME"` resolves to `process.env.ENV_NAME` at dispatch. Rotate by
+updating the env — no restart needed for new incoming calls.

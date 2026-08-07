@@ -1,0 +1,36 @@
+---
+title: Playground
+---
+
+# Playground
+
+The Playground records every invoke so you can replay and export runs.
+
+```bash
+# invoke via playground API (records a run)
+RUN=$(curl -s -X POST http://localhost:4000/api/playground/invoke \
+  -H "content-type: application/json" -H "authorization: Bearer $KEY" \
+  -d '{"server":"petstore","tool":"getPetById","args":{"petId":1}}' | jq -r .runId)
+
+# replay the exact same call
+curl -s -X POST http://localhost:4000/api/playground/runs/$RUN/replay \
+  -H "authorization: Bearer $KEY" | jq
+
+# export history as NDJSON (capped at 1000)
+curl -s "http://localhost:4000/api/playground/runs/export?server=petstore&format=ndjson&limit=100" \
+  -H "authorization: Bearer $KEY" -o petstore-runs.ndjson
+```
+
+| Method | Path | Guard |
+|---|---|---|
+| POST | `/api/playground/invoke` | `tool:invoke` |
+| GET | `/api/playground/runs` | `tool:invoke` |
+| GET | `/api/playground/runs/:id` | `tool:invoke` |
+| POST | `/api/playground/runs/:id/replay` | `tool:invoke` |
+| GET | `/api/playground/runs/export` | `tool:invoke` |
+
+## Inspector
+
+The web console renders each tool's JSON Schema as a tree (type, required, format, enum, description,
+nested object/array), with a tool search filter, a raw-JSON toggle, and snapshot diff at
+`/servers/:id/history`.

@@ -1,0 +1,47 @@
+---
+title: Overview
+---
+
+import { Callout } from 'nextra/components'
+
+# Overview
+
+Mavio-MCP is a router + registry for the Model Context Protocol. It sits between MCP clients and
+your backends and does four jobs:
+
+1. **Import** — turn OpenAPI, SQL, GraphQL, and existing MCP servers into MCP tools.
+2. **Register** — store every server descriptor and capability snapshot in Postgres.
+3. **Route** — expose all tools under one endpoint, namespaced as `serverId.toolName`.
+4. **Guard** — authenticate, authorize (RBAC), rate-limit, audit, and observe every call.
+
+## Mental model
+
+```
+   OpenAPI  ─┐
+   SQL      ─┤                    ┌─▶ Any MCP client
+   GraphQL  ─┼─▶ Mavio-MCP  ──────┤   (Claude, IDE, custom, …)
+   MCP      ─┘   (router+registry)└─▶ POST /mcp  ·  GET /mcp/sse  ·  WS /mcp/ws
+```
+
+- **Registry** is the source of truth (Postgres). Server descriptors, capability snapshots, RBAC,
+  audit, playground runs, OIDC providers, plugins.
+- **Router** loads capabilities (Redis-cached), routes by `serverId` prefix, and dispatches to the
+  right upstream transport.
+- **Downstream transports** face MCP clients: HTTP-JSON, SSE, WebSocket.
+- **Upstream transports** face your backends: stdio, http, sse, ws, sql, graphql.
+
+<Callout type="info">
+  Everything security-sensitive is an environment variable; everything about wiring
+  (Postgres/Redis URLs, router tuning) lives in `mavio.config.yaml`. Env always wins.
+</Callout>
+
+## Monorepo layout
+
+- `apps/server` — router + admin API (the thing you deploy).
+- `apps/web` — Inspector + Playground console.
+- `apps/cli` — the `mavio` command.
+- `apps/docs` — this documentation site.
+- `packages/*` — `core`, `registry`, `transport`, `rbac`/`rbac-opa`, `import-*`, `upstream-auth`,
+  `observability`, `plugin`, `sdk`, `marketplace`, `cache`, `config`, `registry-external`.
+
+Next: **[Quick Start](/getting-started/quick-start)**.

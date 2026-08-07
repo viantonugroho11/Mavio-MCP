@@ -1,0 +1,23 @@
+---
+title: Registry
+---
+
+# Registry
+
+- **Postgres source of truth.** Server descriptors, capability snapshots, RBAC, audit, playground
+  runs, OIDC providers, plugins.
+- **Capability snapshots + diff.** `diffCapabilities()` produces added/removed/changed/unchanged per
+  snapshot. Browse them in the Inspector at `/servers/:id/history`.
+- **External discovery** (`@mavio/registry-external`):
+  - `EtcdSource` — etcd v3 gRPC-JSON gateway.
+  - `ConsulSource` — Consul KV HTTP API.
+  - Server-side `ExternalRegistrySync` polls on `MAVIO_EXTERNAL_REGISTRY_INTERVAL_MS` (default 30s),
+    fingerprint-diffs, upserts into Postgres, and publishes cache invalidation on change.
+
+```bash
+MAVIO_EXTERNAL_REGISTRY=etcd|consul
+MAVIO_EXTERNAL_REGISTRY_ENDPOINT=http://etcd:2379
+MAVIO_EXTERNAL_REGISTRY_PREFIX=/mavio/servers/
+MAVIO_EXTERNAL_REGISTRY_TOKEN=<optional>
+MAVIO_EXTERNAL_REGISTRY_INTERVAL_MS=30000
+```

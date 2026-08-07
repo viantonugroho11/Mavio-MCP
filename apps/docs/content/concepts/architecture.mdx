@@ -1,0 +1,54 @@
+---
+title: Architecture
+---
+
+# Architecture
+
+Mavio-MCP follows clean architecture: domain logic in `packages/core`, adapters at the edge.
+
+## Request path
+
+```
+MCP client
+   │  POST /mcp · GET /mcp/sse · WS /mcp/ws
+   ▼
+Downstream transport ──▶ Auth resolver ──▶ RBAC engine ──▶ Router
+                                                              │  serverId.toolName
+                                                              ▼
+                                         Capability cache (Redis, TTL 300s)
+                                                              │
+                              Circuit breaker · rate limit · upstream OAuth vault
+                                                              ▼
+                             Upstream transport (stdio/http/sse/ws/sql/graphql)
+                                                              ▼
+                                                          Backend
+```
+
+## Data plane vs control plane
+
+- **Data plane** — `/mcp`, `/mcp/sse`, `/mcp/ws`. MCP JSON-RPC frames. Unauthenticated only in
+  dev-open mode.
+- **Control plane** — `/api/*`. Admin operations (imports, servers, RBAC, playground, audit,
+  plugins). Always RBAC-guarded.
+
+## Storage
+
+- **PostgreSQL** — source of truth: server descriptors, capability snapshots, RBAC, audit,
+  playground runs, OIDC providers, plugins, upstream credential vault.
+- **Redis** — capability cache, invalidation bus (Streams), per-server rate limits, background jobs.
+
+## Production topology
+
+```
+                     ┌─────────────────┐
+     MCP clients ───▶│  Reverse proxy  │──▶ Mavio-MCP pods (N ≥ 2)
+                     │  (Envoy / NGINX │        │
+                     │   / Pomerium)   │        ├─▶ PostgreSQL (managed)
+                     └─────────────────┘        └─▶ Redis (managed)
+                            │
+                            └─▶ terminates TLS + SAML/OIDC/mTLS,
+                                forwards X-Auth-Subject / -Type / -Workspace
+```
+
+The server is stateless — sessions live in Postgres, so any replica serves any request. See the
+full architecture doc and ADRs in the [repository](https://github.com/viantonugroho11/Mavio-MCP/tree/main/docs/architecture).

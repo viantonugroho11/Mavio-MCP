@@ -1,0 +1,80 @@
+---
+title: Quick Start
+---
+
+import { Steps, Callout } from 'nextra/components'
+
+# Quick Start
+
+Get to your first tool call in about 5 minutes.
+
+<Callout type="warning">
+  Prereqs: **Node 20.11+**, **pnpm 9**, **Docker**.
+</Callout>
+
+<Steps>
+
+### Clone, install, build
+
+```bash
+git clone https://github.com/viantonugroho11/Mavio-MCP.git
+cd Mavio-MCP
+pnpm install && pnpm build
+```
+
+### Start Postgres + Redis, apply schema
+
+```bash
+docker compose up -d
+cp .env.example .env && export $(grep -v "^#" .env | xargs)
+pnpm --filter @mavio/registry migrate
+```
+
+### Start the router
+
+```bash
+cp mavio.config.example.yaml mavio.config.yaml
+pnpm --filter @mavio/server start &                     # http://localhost:4000
+```
+
+### Import a backend
+
+```bash
+node apps/cli/dist/index.js import openapi \
+  --id petstore --url https://petstore3.swagger.io/api/v3/openapi.json
+```
+
+### Call a tool
+
+```bash
+# List the tools Mavio now exposes
+curl -s -X POST http://localhost:4000/mcp \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools[0:3]'
+
+# Invoke one (namespaced serverId.toolName)
+curl -s -X POST http://localhost:4000/mcp \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call",
+       "params":{"name":"petstore.getPetById","arguments":{"petId":1}}}' | jq
+```
+
+</Steps>
+
+## Optional web console
+
+```bash
+pnpm --filter @mavio/web dev                            # http://localhost:3000
+```
+
+## Smoke test
+
+```bash
+curl -s -X POST http://localhost:4000/mcp \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | jq
+```
+
+Expected: `{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05", ...}}`.
+
+Next: **[Installation](/getting-started/installation)** for Docker / Helm / K8s variants.

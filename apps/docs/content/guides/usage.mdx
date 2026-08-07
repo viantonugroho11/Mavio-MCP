@@ -1,0 +1,153 @@
+---
+title: Scenarios & Walk-throughs
+---
+
+import { Callout } from 'nextra/components'
+
+# Scenarios & Walk-throughs
+
+End-to-end recipes. All commands assume the server runs on `http://localhost:4000`. Substitute
+`MAVIO_ADMIN_API_KEY` where you see `$KEY`.
+
+## 1 — Import an OpenAPI service and call a tool
+
+```bash
+# 1. Import
+curl -X POST http://localhost:4000/api/imports/openapi \
+  -H "content-type: application/json" -H "authorization: Bearer $KEY" \
+  -d '{"id":"petstore","name":"Petstore",
+       "url":"https://petstore3.swagger.io/api/v3/openapi.json",
+       "workspaceId":"default","projectId":"sandbox"}'
+
+# 2. Verify it registered
+curl -s http://localhost:4000/api/servers -H "authorization: Bearer $KEY" | jq
+
+# 3. List tools, then call one
+curl -s -X POST http://localhost:4000/mcp -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools[0:3]'
+
+curl -s -X POST http://localhost:4000/mcp -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call",
+       "params":{"name":"petstore.getPetById","arguments":{"petId":1}}}' | jq
+```
+
+CLI shortcut: `mavio import openapi --id petstore --url … --api http://localhost:4000 --key $KEY`.
+
+## 2 — Import a Postgres database (read-only)
+
+```bash
+mavio import sql --id analytics \
+  --dsn "postgres://reader:pw@warehouse:5432/analytics" \
+  --tables events,users --read-only --api http://localhost:4000 --key $KEY
+```
+
+Every table becomes one MCP tool: `analytics.select_events`, `analytics.select_users`. Args map to
+`WHERE` clauses.
+
+## 3 — Mirror an existing MCP server
+
+```bash
+# stdio child process
+mavio import mcp --id filesystem \
+  --stdio "npx -y @modelcontextprotocol/server-filesystem /tmp" --key $KEY
+
+# HTTP transport with a secret reference (resolved from env at dispatch, never stored)
+mavio import mcp --id search --http https://example.internal/mcp \
+  --auth secret://SEARCH_TOKEN --key $KEY
+```
+
+## 4 — SSE and WebSocket downstream
+
+```bash
+# Terminal 1: subscribe. You'll see: event: endpoint / data: /mcp?sid=<uuid>
+curl -N -H 'accept: text/event-stream' http://localhost:4000/mcp/sse
+
+# Terminal 2: POST correlated frames back
+curl -X POST "http://localhost:4000/mcp?sid=<uuid>" -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+# Or one duplex WebSocket
+websocat ws://localhost:4000/mcp/ws
+```
+
+## 5 — RBAC: create a scoped service principal
+
+```bash
+PRIN=$(curl -s -X POST http://localhost:4000/api/rbac/principals \
+  -H "content-type: application/json" -H "authorization: Bearer $KEY" \
+  -d '{"type":"service","name":"ci-runner","workspaceId":"default"}' | jq -r .id)
+
+KEY_OUT=$(curl -s -X POST http://localhost:4000/api/rbac/principals/$PRIN/keys \
+  -H "authorization: Bearer $KEY" | jq -r .apiKey)
+
+curl -X POST http://localhost:4000/api/rbac/assignments \
+  -H "content-type: application/json" -H "authorization: Bearer $KEY" \
+  -d "{\"principalId\":\"$PRIN\",\"roleName\":\"invoker\",
+       \"scope\":{\"workspace\":\"default\",\"server\":\"petstore\"}}"
+```
+
+CI now calls `/mcp` with `Authorization: Bearer $KEY_OUT` and can only invoke tools on `petstore`.
+
+## 6 — Enterprise auth via reverse proxy
+
+Front the server with a proxy (Envoy / oauth2-proxy / Pomerium) that terminates SSO or mTLS and
+forwards verified identity headers:
+
+```
+X-Auth-Subject: alice@example.com
+X-Auth-Type: user
+X-Auth-Workspace: acme
+X-Auth-Scopes: server:read, tool:invoke
+```
+
+Enable trust with `MAVIO_TRUSTED_PROXY_ENABLED=1`. For direct mTLS (Node terminates TLS with
+`requestCert: true`): `MAVIO_MTLS_ENABLED=1` + `MAVIO_MTLS_WORKSPACE=svc`.
+
+<Callout type="warning">
+  Only enable `MAVIO_TRUSTED_PROXY_ENABLED` behind a proxy that actually validates identity — the
+  server trusts those headers verbatim.
+</Callout>
+
+## 7 — Delegate policy to OPA
+
+```
+MAVIO_RBAC_ENGINE=opa
+MAVIO_RBAC_ENGINE_URL=http://opa:8181/v1/data/mavio/authz/allow
+```
+
+```rego
+package mavio.authz
+default allow := false
+allow if {
+  input.principal.type == "user"
+  input.action == "server:read"
+}
+```
+
+Server posts `{input:{principal, action, resource}}`; OPA returns `{result:{allow, reason}}`. Non-2xx
+or timeout → deny (fail-closed, 2s default).
+
+## 8 — Multi-region
+
+```
+# Region A                # Region B
+MAVIO_REGION=eu-west       MAVIO_REGION=us-east
+REDIS_URL=redis://shared   REDIS_URL=redis://shared
+```
+
+Tag a server so it only routes locally: `{ "metadata": { "region": "eu-west" } }`. Untagged servers
+stay globally routable.
+
+## 9 — Prometheus + OTLP
+
+```bash
+curl -s http://localhost:4000/metrics | grep mavio_
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318 OTEL_SERVICE_NAME=mavio-mcp
+```
+
+## 10 — Audit query
+
+```bash
+curl -s "http://localhost:4000/api/audit?action=tool.invoke&outcome=error&limit=20" \
+  -H "authorization: Bearer $KEY" | jq
+```

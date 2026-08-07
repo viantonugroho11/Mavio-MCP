@@ -1,0 +1,50 @@
+---
+title: FAQ
+---
+
+import { Callout } from 'nextra/components'
+
+# FAQ
+
+## Is Mavio-MCP an AI platform or agent framework?
+
+No. It is a router + registry for the Model Context Protocol only. It imports backends and exposes
+them as MCP tools — no LLM orchestration, no agents, no workflow engine.
+
+## Do I have to rewrite my API as MCP tools?
+
+No — that is the whole point. Import an OpenAPI spec, a Postgres schema, a GraphQL endpoint, or an
+existing MCP server, and Mavio generates the tools for you.
+
+## Which MCP transports can clients use?
+
+`POST /mcp` (HTTP-JSON), `GET /mcp/sse` (Server-Sent Events), and `WS /mcp/ws` (WebSocket).
+
+## How are tools named?
+
+`serverId.toolName`. The router routes by the `serverId` prefix.
+
+## Can different users call the same backend with their own credentials?
+
+Yes — the [per-principal upstream OAuth vault](/security/upstream-oauth) injects the right token per
+principal per call (Slack, generic OAuth2 PKCE, RFC 8693 token-exchange).
+
+## Is it safe to expose without an admin key?
+
+<Callout type="error">
+  No. If `MAVIO_ADMIN_API_KEY` is unset the server runs in dev-open mode. Set it before exposing the
+  server to any untrusted network.
+</Callout>
+
+## What database and cache does it need?
+
+PostgreSQL ≥ 14 (source of truth) and Redis ≥ 7 (cache, invalidation bus, rate limits, jobs).
+
+## How do I run it in production?
+
+Helm chart in `deploy/helm/mavio-mcp/`, or raw manifests in `deploy/k8s/`. See
+[Deployment](/deployment/production).
+
+## What license is it under?
+
+Apache 2.0.

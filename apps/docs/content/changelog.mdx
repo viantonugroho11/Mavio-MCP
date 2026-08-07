@@ -1,0 +1,40 @@
+---
+title: Changelog
+---
+
+import { Callout } from 'nextra/components'
+
+# Changelog
+
+<Callout type="info">
+  Full, detailed history lives in
+  [`CHANGELOG.md`](https://github.com/viantonugroho11/Mavio-MCP/blob/main/CHANGELOG.md). This page
+  summarizes the release line.
+</Callout>
+
+## 1.2.0 — 2026-08-05
+
+- Per-principal upstream OAuth vault hardening: `KeyWrapper` interface + Vault Transit KEK backend.
+- Redis PKCE store + background rewrap sweep for zero-downtime key rotation.
+- Admin vault endpoints: `/api/admin/vault/rotate`, `/status`, `/retire`.
+
+## 1.1.0 — 2026-08-05
+
+- Per-principal upstream OAuth vault (Phase 5.1): Slack, generic OAuth2 PKCE, RFC 8693
+  token-exchange; AES-256-GCM envelope encryption; `-32020 { consentUrl }` mid-invoke flow.
+- Upstream metrics + `docs/UPSTREAM_AUTH.md`.
+
+## 1.0.0 — 2026-08-05 (GA)
+
+- WebSocket downstream transport; etcd/Consul external registry sync.
+- OPA + Cedar policy engines; SAML (trusted-proxy) + native mTLS.
+- Multi-region cache; signed marketplace client (sha256 + Ed25519).
+
+## 0.2.0 — 2026-08-04
+
+- Plugin manager + SDK v1; GraphQL + MCP-mirror importers; per-server rate limits.
+- Prometheus metrics + OpenTelemetry OTLP; Helm chart + K8s manifests.
+
+## 0.1.0-mvp — 2026-08-03
+
+- Monorepo, Registry, Router, API keys, OpenAPI importer, Inspector, Playground, CLI.

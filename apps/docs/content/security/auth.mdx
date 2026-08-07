@@ -1,0 +1,29 @@
+---
+title: Authentication
+---
+
+# Authentication
+
+`resolvePrincipalFromRequest` runs these resolvers in order:
+
+1. **Trusted-proxy header** (`MAVIO_TRUSTED_PROXY_ENABLED=1`) — `X-Auth-Subject`, `-Type`,
+   `-Workspace`, `-Scopes`. Enterprise pattern: a reverse proxy terminates SAML/mTLS/SSO and forwards
+   the verified subject.
+2. **Native mTLS peer cert** (`MAVIO_MTLS_ENABLED=1`) — reads `req.socket.getPeerCertificate()`,
+   requires `socket.authorized === true`; principal is `cn:<CN>`.
+3. **Session cookie** (`mavio_sid`) — web console OIDC/OAuth2.
+4. **Bearer token** — API key or `MAVIO_ADMIN_API_KEY`.
+5. **Dev fallback** — if no admin key is configured, resolves as `service:dev` with `*` scopes.
+
+## OIDC / OAuth2
+
+Providers are stored in the `oidc_providers` table and managed via the admin API.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/auth/providers` | Public list — id + displayName for a login UI |
+| GET | `/auth/:providerId/login` | Redirects to the IdP (PKCE, state, nonce, `?return_to=`) |
+| GET | `/auth/:providerId/callback` | IdP redirects here; sets the session cookie |
+| POST | `/auth/logout` | Clears the session |
+| GET | `/auth/me` | Current principal |
+| PUT | `/api/auth/providers/:id` | Admin: upsert a provider (issuer + client id/secret) |

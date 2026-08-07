@@ -1,0 +1,41 @@
+---
+title: Observability
+---
+
+# Observability
+
+## Prometheus
+
+`GET /metrics` (from `@mavio/observability`) exposes:
+
+```
+mavio_router_requests_total{server,tool,outcome}
+mavio_router_request_duration_seconds          # histogram
+mavio_breaker_state{server}                    # 0/1/2
+mavio_rate_limit_denied_total{server,scope}
+mavio_upstream_errors_total{server,kind}
+mavio_importer_runs_total{kind,outcome}
+mavio_upstream_token_refresh_total{provider,outcome}
+mavio_upstream_token_denied_total{provider,reason}
+mavio_vault_decrypt_fail_total{reason}
+```
+
+## OpenTelemetry
+
+NodeSDK + BatchSpanProcessor + OTLP HTTP exporter, gated on `OTEL_EXPORTER_OTLP_ENDPOINT` (or console
+via `MAVIO_OTEL_DEBUG=1`). `RouterService.callTool` and the OpenAPI/GraphQL dispatchers create spans;
+the W3C `traceparent` header is injected into upstream HTTP. Span attributes include
+`mavio.server.id`, `tool.name`, `transport.kind`, and `principal.id`.
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+OTEL_SERVICE_NAME=mavio-mcp
+MAVIO_OTEL_DEBUG=1           # also write spans to stdout
+```
+
+## Health
+
+| Path | Purpose |
+|---|---|
+| `GET /healthz` | Liveness — 200 while the process is up |
+| `GET /readyz` | Readiness — 200 when Postgres + Redis are reachable |

@@ -1,0 +1,23 @@
+---
+title: Audit
+---
+
+# Audit
+
+Every security-relevant event is written to the `audit_logs` table.
+
+| Event | Actor | Notes |
+|---|---|---|
+| `auth.login` | user | `created` flag + email |
+| `auth.logout` | user | session id |
+| `rbac.deny` | any | `required` action + `reason` |
+| `tool.invoke` | any | `outcome` / `durationMs`, always in `finally` |
+| `upstream.token.issue` | user | login endpoint or mint success |
+| `upstream.token.revoke` | admin | DELETE upstream-token |
+
+Query (guarded by `audit:read`, cap 500):
+
+```bash
+curl -s "http://localhost:4000/api/audit?actor=&action=&outcome=&since=&limit=" \
+  -H "authorization: Bearer $KEY" | jq
+```

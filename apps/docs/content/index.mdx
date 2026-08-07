@@ -1,0 +1,58 @@
+---
+title: Introduction
+---
+
+import { Cards, Callout, Steps } from 'nextra/components'
+
+# Mavio-MCP
+
+**The all-in-one developer toolkit for the Model Context Protocol.**
+
+Mavio-MCP takes anything that talks HTTP, SQL, GraphQL, or MCP-native and republishes it as a
+single, authenticated MCP endpoint. Point one MCP client at Mavio and it sees every backend as a
+namespaced set of tools.
+
+<Callout type="info">
+  Mavio-MCP is **not** an AI platform, agent framework, LLM orchestrator, or workflow engine.
+  **Only MCP.**
+</Callout>
+
+```
+   OpenAPI  ─┐
+   SQL      ─┤                    ┌─▶ Any MCP client
+   GraphQL  ─┼─▶ Mavio-MCP  ──────┤   (Claude, IDE, custom, …)
+   MCP      ─┘   (router+registry)└─▶ POST /mcp  ·  GET /mcp/sse  ·  WS /mcp/ws
+```
+
+## Why Mavio-MCP
+
+| The problem | Mavio-MCP |
+|---|---|
+| You have REST APIs, but AI clients speak MCP | Import the OpenAPI spec — every operation becomes an MCP tool |
+| Your data lives in Postgres, not an API | Import the schema read-only — every table becomes a `select_*` tool |
+| Each MCP client must be wired to each backend | Point every client at one Mavio endpoint; it namespaces all backends |
+| MCP servers exist but have no auth, RBAC, or audit | Front them with Mavio — OIDC, 4-scope RBAC, audit log, rate limits |
+| Different users need different upstream credentials | Per-principal upstream OAuth vault injects the right token per call |
+| You need production, not a laptop demo | Helm chart, metrics, traces, circuit breaker, multi-region, HA |
+
+## Start here
+
+<Cards>
+  <Cards.Card title="Quick start (60s)" href="/getting-started/quick-start" arrow />
+  <Cards.Card title="Install" href="/getting-started/installation" arrow />
+  <Cards.Card title="Core concepts" href="/concepts/architecture" arrow />
+  <Cards.Card title="Guides & scenarios" href="/guides/usage" arrow />
+  <Cards.Card title="HTTP API reference" href="/reference/api" arrow />
+  <Cards.Card title="Deploy to production" href="/deployment/production" arrow />
+</Cards>
+
+## What you can import
+
+| Source | CLI | What you get |
+|---|---|---|
+| **OpenAPI v3** | `mavio import openapi` | Each operation → one MCP tool, `$ref` resolved |
+| **SQL (Postgres)** | `mavio import sql` | Each table → `select_*` tool, read-only by default |
+| **GraphQL** | `mavio import graphql` | Introspection → tools with enums + auto leaf-select |
+| **Existing MCP** | `mavio import mcp` | Mirror any stdio/http/sse MCP server |
+
+See [Concepts → Importers](/concepts/importers) for the full breakdown.

@@ -1,0 +1,37 @@
+---
+title: Production Topology
+---
+
+# Production topology
+
+```
+                     ┌─────────────────┐
+     MCP clients ───▶│  Reverse proxy  │──▶ Mavio-MCP pods (N ≥ 2)
+                     │  (Envoy / NGINX │        │
+                     │   / Pomerium)   │        ├─▶ PostgreSQL (managed)
+                     └─────────────────┘        └─▶ Redis (managed)
+                            │
+                            └─▶ terminates TLS + SAML/OIDC/mTLS,
+                                forwards X-Auth-Subject / -Type / -Workspace
+```
+
+- Multiple stateless replicas behind a load balancer. Sessions live in Postgres, so any pod serves
+  any request.
+- **Postgres** = source of truth. Managed (RDS / Cloud SQL) recommended.
+- **Redis** = cache + invalidation bus + rate limits + jobs. Managed (ElastiCache / MemoryStore).
+- **Reverse proxy** handles TLS + SSO; the backend trusts `X-Auth-*` (see
+  [Configuration](/reference/configuration)).
+
+## Zero-downtime deploy
+
+- Rolling update with `maxSurge: 1, maxUnavailable: 0`.
+- The server drains active WS/SSE on `SIGTERM`; in-flight HTTP finishes. Otel spans flush via
+  `shutdownTracing()`.
+- The circuit breaker keeps in-flight traffic from cascading upstream failures during the rollout.
+
+## Backups
+
+- **Postgres** — managed automated backups + logical dumps
+  (`pg_dump mavio | gzip > mavio-$(date +%F).sql.gz`).
+- **Redis** — ephemeral; rebuilds on demand. Audit + playground history live in Postgres.
+- **Config** — keep `mavio.config.yaml` in version control.
