@@ -22,6 +22,12 @@ interface ImportOpenApiBody {
   path?: string;
   baseUrl?: string;
   tags?: string[];
+  /**
+   * Optional per-principal upstream OAuth provider id. When set, the router
+   * resolves a per-user credential (e.g. RFC 8693 token-exchange to a
+   * KrakenD/Keycloak-fronted backend) before every dispatch.
+   */
+  upstreamOAuthProvider?: string;
 }
 
 interface ImportSqlBody {
@@ -32,6 +38,7 @@ interface ImportSqlBody {
   allowedTables?: string[];
   readOnly?: boolean;
   tags?: string[];
+  upstreamOAuthProvider?: string;
 }
 
 interface ImportGraphqlBody {
@@ -41,6 +48,7 @@ interface ImportGraphqlBody {
   endpoint: string;
   headers?: Record<string, string>;
   tags?: string[];
+  upstreamOAuthProvider?: string;
 }
 
 interface ImportMcpBody {
@@ -50,6 +58,13 @@ interface ImportMcpBody {
   name?: string;
   transport: TransportDescriptor;
   tags?: string[];
+  upstreamOAuthProvider?: string;
+}
+
+function metadataFor(body: { upstreamOAuthProvider?: string }): Record<string, unknown> | undefined {
+  return body.upstreamOAuthProvider
+    ? { upstreamOAuthProvider: body.upstreamOAuthProvider }
+    : undefined;
 }
 
 @Controller("api/imports")
@@ -87,6 +102,7 @@ export class ImportsController {
         sourceType: "openapi",
         transport: { type: "http", baseUrl: blueprint.baseUrl },
         tags: body.tags,
+        metadata: metadataFor(body),
         version: blueprint.serverVersion,
       });
       await this.registry.snapshotCapabilities(body.id, blueprint.serverVersion, {
@@ -117,6 +133,7 @@ export class ImportsController {
         readOnly: body.readOnly ?? true,
       },
       tags: body.tags,
+      metadata: metadataFor(body),
       version: blueprint.serverVersion,
     });
     await this.registry.snapshotCapabilities(body.id, blueprint.serverVersion, {
@@ -141,6 +158,7 @@ export class ImportsController {
       sourceType: "graphql",
       transport: { type: "graphql", endpoint: blueprint.endpoint, headers: body.headers },
       tags: body.tags,
+      metadata: metadataFor(body),
       version: blueprint.serverVersion,
     });
     await this.registry.snapshotCapabilities(body.id, blueprint.serverVersion, {
@@ -169,6 +187,7 @@ export class ImportsController {
       sourceType: "mcp",
       transport: body.transport,
       tags: body.tags,
+      metadata: metadataFor(body),
       version: blueprint.serverVersion,
     });
     await this.registry.snapshotCapabilities(body.id, blueprint.serverVersion, blueprint.capabilities);

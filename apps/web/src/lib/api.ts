@@ -56,6 +56,7 @@ export async function importOpenApi(body: {
   projectId: string;
   url?: string;
   baseUrl?: string;
+  upstreamOAuthProvider?: string;
 }): Promise<{ ok: boolean; toolCount: number }> {
   const res = await fetch(`${API_URL}/api/imports/openapi`, {
     method: "POST",
@@ -65,6 +66,34 @@ export async function importOpenApi(body: {
   const json = (await res.json()) as { ok?: boolean; toolCount?: number; message?: string };
   if (!res.ok) throw new Error(json.message ?? `import ${res.status}`);
   return { ok: true, toolCount: json.toolCount ?? 0 };
+}
+
+export type McpTransport =
+  | { type: "stdio"; command: string; args?: string[] }
+  | { type: "http"; baseUrl: string; auth?: { type: "bearer"; secretRef: string } }
+  | { type: "sse"; url: string; auth?: { type: "bearer"; secretRef: string } };
+
+export async function importMcp(body: {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  name?: string;
+  transport: McpTransport;
+  upstreamOAuthProvider?: string;
+}): Promise<{ ok: boolean; toolCount: number; serverName: string }> {
+  const res = await fetch(`${API_URL}/api/imports/mcp`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  const json = (await res.json()) as {
+    ok?: boolean;
+    toolCount?: number;
+    serverName?: string;
+    message?: string;
+  };
+  if (!res.ok) throw new Error(json.message ?? `import ${res.status}`);
+  return { ok: true, toolCount: json.toolCount ?? 0, serverName: json.serverName ?? body.id };
 }
 
 export async function callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
