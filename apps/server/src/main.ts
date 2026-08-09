@@ -7,6 +7,7 @@ import { AppModule } from "./app.module.js";
 import { RouterService } from "./router.service.js";
 import { RBAC_REPO } from "./rbac.module.js";
 import { attachWsGateway } from "./ws.gateway.js";
+import { csrfProtection } from "./csrf.middleware.js";
 
 async function bootstrap(): Promise<void> {
   bootstrapTracing({ serviceName: "mavio-mcp-server", serviceVersion: "0.1.0" });
@@ -14,6 +15,7 @@ async function bootstrap(): Promise<void> {
   // Reflect the request origin AND allow credentials so the web console can
   // read /auth/me and send the mavio_sid session cookie cross-origin.
   app.enableCors({ origin: true, credentials: true });
+  app.use(csrfProtection());
   const port = Number(process.env.MAVIO_HTTP_PORT ?? 4000);
   await app.listen(port);
   const httpServer = app.getHttpServer() as HttpServer;
