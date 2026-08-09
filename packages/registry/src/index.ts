@@ -30,12 +30,15 @@ export {
 
 export interface RegisterInput extends Omit<ServerDescriptor, "version"> {
   version?: string;
+  submittedBy?: string;
+  autoApprove?: boolean;
 }
 
 export class Registry {
   constructor(private readonly db: Kysely<Database>) {}
 
   async register(input: RegisterInput): Promise<ServerDescriptor> {
+    const approvalStatus = input.autoApprove ? "approved" : "pending";
     const row = await this.db
       .insertInto("servers")
       .values({
@@ -49,6 +52,11 @@ export class Registry {
         metadata: JSON.stringify(input.metadata ?? {}),
         tags: input.tags ?? [],
         status: "unknown",
+        approval_status: approvalStatus,
+        submitted_by: input.submittedBy ?? null,
+        approved_by: input.autoApprove ? (input.submittedBy ?? null) : null,
+        approved_at: input.autoApprove ? new Date() : null,
+        rejection_reason: null,
       })
       .onConflict((oc) =>
         oc.column("id").doUpdateSet({
@@ -56,11 +64,50 @@ export class Registry {
           transport: JSON.stringify(input.transport),
           tags: input.tags ?? [],
           metadata: JSON.stringify(input.metadata ?? {}),
+          approval_status: "pending",
+          submitted_by: input.submittedBy ?? null,
+          approved_by: null,
+          approved_at: null,
+          rejection_reason: null,
           updated_at: sql`now()`,
         }),
       )
       .returningAll()
       .executeTakeFirstOrThrow();
+    return this.toDescriptor(row);
+  }
+
+  async approve(id: string, approverId: string): Promise<ServerDescriptor> {
+    const row = await this.db
+      .updateTable("servers")
+      .set({
+        approval_status: "approved",
+        approved_by: approverId,
+        approved_at: new Date(),
+        rejection_reason: null,
+        updated_at: sql`now()`,
+      })
+      .where("id", "=", id)
+      .returningAll()
+      .executeTakeFirst();
+    if (!row) throw new NotFoundError(`server ${id}`);
+    return this.toDescriptor(row);
+  }
+
+  async reject(id: string, approverId: string, reason: string): Promise<ServerDescriptor> {
+    const row = await this.db
+      .updateTable("servers")
+      .set({
+        approval_status: "rejected",
+        approved_by: approverId,
+        approved_at: new Date(),
+        rejection_reason: reason,
+        updated_at: sql`now()`,
+      })
+      .where("id", "=", id)
+      .returningAll()
+      .executeTakeFirst();
+    if (!row) throw new NotFoundError(`server ${id}`);
     return this.toDescriptor(row);
   }
 
@@ -75,10 +122,14 @@ export class Registry {
     return this.toDescriptor(row);
   }
 
-  async list(filter: { workspaceId?: string; projectId?: string } = {}): Promise<ServerDescriptor[]> {
+  async list(
+    filter: { workspaceId?: string; projectId?: string; approvalStatus?: "pending" | "approved" | "rejected" | "any" } = {},
+  ): Promise<ServerDescriptor[]> {
     let q = this.db.selectFrom("servers").selectAll();
     if (filter.workspaceId) q = q.where("workspace_id", "=", filter.workspaceId);
     if (filter.projectId) q = q.where("project_id", "=", filter.projectId);
+    const status = filter.approvalStatus ?? "approved";
+    if (status !== "any") q = q.where("approval_status", "=", status);
     const rows = await q.orderBy("id", "asc").execute();
     return rows.map((r) => this.toDescriptor(r));
   }
@@ -157,6 +208,11 @@ export class Registry {
     tags: string[];
     status?: string;
     updated_at?: Date;
+    approval_status?: string;
+    submitted_by?: string | null;
+    approved_by?: string | null;
+    approved_at?: Date | null;
+    rejection_reason?: string | null;
   }): ServerDescriptor {
     return {
       id: row.id,
@@ -170,6 +226,11 @@ export class Registry {
       tags: row.tags,
       status: (row.status as ServerDescriptor["status"]) ?? "unknown",
       lastCheckedAt: row.updated_at?.toISOString(),
+      approvalStatus: (row.approval_status as ServerDescriptor["approvalStatus"]) ?? "pending",
+      submittedBy: row.submitted_by ?? undefined,
+      approvedBy: row.approved_by ?? undefined,
+      approvedAt: row.approved_at?.toISOString(),
+      rejectionReason: row.rejection_reason ?? undefined,
     };
   }
 }

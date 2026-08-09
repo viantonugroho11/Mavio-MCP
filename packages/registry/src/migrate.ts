@@ -29,6 +29,20 @@ async function main(): Promise<void> {
   `.execute(db);
 
   await sql`
+    ALTER TABLE servers
+      ADD COLUMN IF NOT EXISTS approval_status  text NOT NULL DEFAULT 'pending',
+      ADD COLUMN IF NOT EXISTS submitted_by     text,
+      ADD COLUMN IF NOT EXISTS approved_by      text,
+      ADD COLUMN IF NOT EXISTS approved_at      timestamptz,
+      ADD COLUMN IF NOT EXISTS rejection_reason text;
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS servers_approval_status_idx
+      ON servers (approval_status);
+  `.execute(db);
+
+  await sql`
     CREATE INDEX IF NOT EXISTS servers_tags_idx
       ON servers USING GIN (tags);
   `.execute(db);

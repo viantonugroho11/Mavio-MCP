@@ -11,6 +11,11 @@ export interface ServersTable {
   metadata: unknown;
   tags: string[];
   status: string;
+  approval_status: Generated<string>;
+  submitted_by: string | null;
+  approved_by: string | null;
+  approved_at: Date | null;
+  rejection_reason: string | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
