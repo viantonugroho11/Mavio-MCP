@@ -66,7 +66,7 @@ Full-duplex. Client sends JSON-RPC frames; server writes correlated responses. 1
 | GET | `/api/servers` | `server:read` | — |
 | GET | `/api/servers/:id` | `server:read` | — |
 | GET | `/api/servers/:id/capabilities` | `server:read` | — |
-| POST | `/api/servers` | `server:write` | `ServerDescriptor` (auto-approves — admin infra path) |
+| POST | `/api/servers` | `server:admin` | `ServerDescriptor` (auto-approves — admin infra path only) |
 | GET | `/api/servers?status=pending\|approved\|rejected\|any` | `server:read` | default `approved` |
 | DELETE | `/api/servers/:id` | `server:write` | — |
 | GET | `/api/servers/:id/snapshots` | `server:read` | — |

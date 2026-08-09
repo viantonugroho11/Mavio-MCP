@@ -4,6 +4,22 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Security — P0 hardening on the approval workflow
+- **Deferred upstream probe.** Import submit endpoints no longer connect to
+  the upstream. `loadOpenApi` HTTP fetch, `importPostgres` DB connect,
+  `importGraphql` introspection, and `importMcp` stdio spawn / capability
+  negotiation now run ONLY when an admin approves. Closes the "malicious
+  submitter runs upstream code before any review" hole.
+  **Breaking:** submit response shape is now `{ ok, approvalStatus,
+  snapshotDeferred }` (was `{ ok, toolCount, ... }`).
+- **CSRF Origin/Referer guard.** New middleware (`csrf.middleware.ts`)
+  requires session-cookie POST/PUT/PATCH/DELETE requests to present an
+  Origin (or Referer) header matching `MAVIO_TRUSTED_ORIGINS`. Bearer-token
+  requests are exempt. Dev default: allow localhost.
+- **`POST /api/servers` guard tightened to `server:admin`** (was
+  `server:write`). Prevents `developer` role from using the admin infra
+  path to auto-approve a server and bypass the moderation queue.
+
 ### Added — Import approval workflow (ADR-021)
 - All four import endpoints (`/api/imports/{openapi,sql,graphql,mcp}`) now require
   `server:import.submit` (was `server:write`) and land the server row with

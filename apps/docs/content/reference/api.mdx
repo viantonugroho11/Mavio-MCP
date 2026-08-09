@@ -42,7 +42,7 @@ mode.
 | GET | `/api/servers?status=pending\|approved\|rejected\|any` | `server:read` (default `approved`) |
 | GET | `/api/servers/:id` | `server:read` |
 | GET | `/api/servers/:id/capabilities` | `server:read` |
-| POST | `/api/servers` | `server:write` (auto-approves — admin infra path) |
+| POST | `/api/servers` | `server:admin` (auto-approves — admin infra path only) |
 | DELETE | `/api/servers/:id` | `server:write` |
 | GET | `/api/servers/:id/snapshots` | `server:read` |
 
