@@ -169,6 +169,10 @@ export class RouterService implements OnModuleInit {
       throw err;
     }
 
+    if (descriptor.approvalStatus && descriptor.approvalStatus !== "approved") {
+      return errorFrame(frame.id, -32002, `server ${serverId} not approved (status=${descriptor.approvalStatus})`);
+    }
+
     if (principal && !principal.scopes.includes("*")) {
       const decision = await this.policy.can(principal, Actions.ToolInvoke, {
         workspace: descriptor.workspaceId,

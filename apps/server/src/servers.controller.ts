@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Inject, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Post, Query, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import type { ServerCapabilities, ServerDescriptor } from "@mavio/core";
 import { Actions } from "@mavio/rbac";
@@ -18,8 +18,10 @@ export class ServersController {
 
   @Get()
   @RequirePermission(Actions.ServerRead)
-  list(): Promise<ServerDescriptor[]> {
-    return this.registry.list();
+  list(@Query("status") status?: string): Promise<ServerDescriptor[]> {
+    const allowed = new Set(["pending", "approved", "rejected", "any"]);
+    const filter = status && allowed.has(status) ? (status as "pending" | "approved" | "rejected" | "any") : "approved";
+    return this.registry.list({ approvalStatus: filter });
   }
 
   @Get(":id")
@@ -37,7 +39,7 @@ export class ServersController {
   @Post()
   @RequirePermission(Actions.ServerWrite)
   async register(@Body() body: ServerDescriptor): Promise<ServerDescriptor> {
-    const result = await this.registry.register(body);
+    const result = await this.registry.register({ ...body, autoApprove: true });
     await this.router.invalidate(body.id);
     return result;
   }
