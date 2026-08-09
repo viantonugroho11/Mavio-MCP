@@ -6,6 +6,8 @@ export const Actions = {
   ServerWrite: "server:write",
   ServerInvoke: "server:invoke",
   ServerAdmin: "server:admin",
+  ServerImportSubmit: "server:import.submit",
+  ServerApprove: "server:approve",
   ToolInvoke: "tool:invoke",
   PluginInstall: "plugin:install",
   ConfigWrite: "config:write",
