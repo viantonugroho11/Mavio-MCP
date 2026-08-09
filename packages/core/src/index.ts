@@ -82,9 +82,15 @@ export interface ServerDescriptor {
   metadata?: Record<string, unknown>;
   status?: ServerStatus;
   lastCheckedAt?: string;
+  approvalStatus?: ApprovalStatus;
+  submittedBy?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
 }
 
 export type ServerStatus = "healthy" | "degraded" | "down" | "unknown";
+export type ApprovalStatus = "pending" | "approved" | "rejected";
 
 export interface Principal {
   id: string;
