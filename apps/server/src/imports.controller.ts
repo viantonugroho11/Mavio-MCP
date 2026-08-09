@@ -111,32 +111,38 @@ export class ImportsController {
     return (req as Request & { principal?: Principal }).principal;
   }
 
+  /**
+   * Submit endpoints DO NOT connect to upstream. They persist the raw import
+   * spec (kind + body) in metadata.importSpec and land the server row in
+   * approval_status='pending' with the transport supplied by the user. The
+   * actual blueprint step — which executes stdio commands, opens DB
+   * connections, or fetches remote schemas — is deferred to approve time
+   * (see approve() below). This closes the "malicious submitter runs upstream
+   * code before any admin review" hole from ADR-021.
+   */
   @Post("openapi")
   @RequirePermission(Actions.ServerImportSubmit)
   async importOpenapi(
     @Body() body: ImportOpenApiBody,
     @Req() req: Request,
-  ): Promise<{ ok: true; toolCount: number; approvalStatus: string }> {
+  ): Promise<{ ok: true; approvalStatus: string; snapshotDeferred: true }> {
     return this.trackImport("openapi", req, body.id, async () => {
-      const doc = await loadOpenApi({ url: body.url, path: body.path });
-      const blueprint = buildBlueprint(doc, body.baseUrl);
       const submitted = await this.registry.register({
         id: body.id,
         workspaceId: body.workspaceId,
         projectId: body.projectId,
-        name: blueprint.serverName,
+        name: body.id,
         sourceType: "openapi",
-        transport: { type: "http", baseUrl: blueprint.baseUrl },
+        transport: { type: "http", baseUrl: body.baseUrl ?? "" },
         tags: body.tags,
-        metadata: metadataFor(body),
-        version: blueprint.serverVersion,
+        metadata: { ...(metadataFor(body) ?? {}), importSpec: { kind: "openapi", body } },
         submittedBy: this.principalOf(req)?.id,
       });
-      await this.registry.snapshotCapabilities(body.id, blueprint.serverVersion, {
-        tools: blueprint.tools,
-        serverInfo: { name: blueprint.serverName, version: blueprint.serverVersion },
-      });
-      return { ok: true as const, toolCount: blueprint.tools.length, approvalStatus: submitted.approvalStatus ?? "pending" };
+      return {
+        ok: true as const,
+        approvalStatus: submitted.approvalStatus ?? "pending",
+        snapshotDeferred: true as const,
+      };
     });
   }
 
@@ -145,32 +151,30 @@ export class ImportsController {
   async importSql(
     @Body() body: ImportSqlBody,
     @Req() req: Request,
-  ): Promise<{ ok: true; toolCount: number; tables: string[]; approvalStatus: string }> {
+  ): Promise<{ ok: true; approvalStatus: string; snapshotDeferred: true }> {
     return this.trackImport("sql", req, body.id, async () => {
-    const blueprint = await importPostgres({ dsn: body.dsn, allowedTables: body.allowedTables });
-    const submitted = await this.registry.register({
-      id: body.id,
-      workspaceId: body.workspaceId,
-      projectId: body.projectId,
-      name: blueprint.serverName,
-      sourceType: "sql",
-      transport: {
-        type: "sql",
-        dialect: "postgres",
-        dsn: body.dsn,
-        allowedTables: blueprint.allowedTables,
-        readOnly: body.readOnly ?? true,
-      },
-      tags: body.tags,
-      metadata: metadataFor(body),
-      version: blueprint.serverVersion,
-      submittedBy: this.principalOf(req)?.id,
-    });
-    await this.registry.snapshotCapabilities(body.id, blueprint.serverVersion, {
-      tools: blueprint.tools,
-      serverInfo: { name: blueprint.serverName, version: blueprint.serverVersion },
-    });
-    return { ok: true as const, toolCount: blueprint.tools.length, tables: blueprint.allowedTables, approvalStatus: submitted.approvalStatus ?? "pending" };
+      const submitted = await this.registry.register({
+        id: body.id,
+        workspaceId: body.workspaceId,
+        projectId: body.projectId,
+        name: body.id,
+        sourceType: "sql",
+        transport: {
+          type: "sql",
+          dialect: "postgres",
+          dsn: body.dsn,
+          allowedTables: body.allowedTables ?? [],
+          readOnly: body.readOnly ?? true,
+        },
+        tags: body.tags,
+        metadata: { ...(metadataFor(body) ?? {}), importSpec: { kind: "sql", body } },
+        submittedBy: this.principalOf(req)?.id,
+      });
+      return {
+        ok: true as const,
+        approvalStatus: submitted.approvalStatus ?? "pending",
+        snapshotDeferred: true as const,
+      };
     });
   }
 
@@ -179,26 +183,24 @@ export class ImportsController {
   async importGraphql(
     @Body() body: ImportGraphqlBody,
     @Req() req: Request,
-  ): Promise<{ ok: true; toolCount: number; approvalStatus: string }> {
+  ): Promise<{ ok: true; approvalStatus: string; snapshotDeferred: true }> {
     return this.trackImport("graphql", req, body.id, async () => {
-    const blueprint = await importGraphql({ endpoint: body.endpoint, headers: body.headers });
-    const submitted = await this.registry.register({
-      id: body.id,
-      workspaceId: body.workspaceId,
-      projectId: body.projectId,
-      name: blueprint.serverName,
-      sourceType: "graphql",
-      transport: { type: "graphql", endpoint: blueprint.endpoint, headers: body.headers },
-      tags: body.tags,
-      metadata: metadataFor(body),
-      version: blueprint.serverVersion,
-      submittedBy: this.principalOf(req)?.id,
-    });
-    await this.registry.snapshotCapabilities(body.id, blueprint.serverVersion, {
-      tools: blueprint.tools,
-      serverInfo: { name: blueprint.serverName, version: blueprint.serverVersion },
-    });
-    return { ok: true as const, toolCount: blueprint.tools.length, approvalStatus: submitted.approvalStatus ?? "pending" };
+      const submitted = await this.registry.register({
+        id: body.id,
+        workspaceId: body.workspaceId,
+        projectId: body.projectId,
+        name: body.id,
+        sourceType: "graphql",
+        transport: { type: "graphql", endpoint: body.endpoint, headers: body.headers },
+        tags: body.tags,
+        metadata: { ...(metadataFor(body) ?? {}), importSpec: { kind: "graphql", body } },
+        submittedBy: this.principalOf(req)?.id,
+      });
+      return {
+        ok: true as const,
+        approvalStatus: submitted.approvalStatus ?? "pending",
+        snapshotDeferred: true as const,
+      };
     });
   }
 
@@ -207,28 +209,102 @@ export class ImportsController {
   async importMcpMirror(
     @Body() body: ImportMcpBody,
     @Req() req: Request,
-  ): Promise<{ ok: true; toolCount: number; serverName: string; approvalStatus: string }> {
+  ): Promise<{ ok: true; approvalStatus: string; snapshotDeferred: true }> {
     return this.trackImport("mcp", req, body.id, async () => {
-    const blueprint = await importMcp({
-      transport: body.transport,
-      name: body.name,
-      transports: this.transports,
+      const submitted = await this.registry.register({
+        id: body.id,
+        workspaceId: body.workspaceId,
+        projectId: body.projectId,
+        name: body.name ?? body.id,
+        sourceType: "mcp",
+        transport: body.transport,
+        tags: body.tags,
+        metadata: { ...(metadataFor(body) ?? {}), importSpec: { kind: "mcp", body } },
+        submittedBy: this.principalOf(req)?.id,
+      });
+      return {
+        ok: true as const,
+        approvalStatus: submitted.approvalStatus ?? "pending",
+        snapshotDeferred: true as const,
+      };
     });
-    const submitted = await this.registry.register({
-      id: body.id,
-      workspaceId: body.workspaceId,
-      projectId: body.projectId,
-      name: blueprint.serverName,
-      sourceType: "mcp",
-      transport: body.transport,
-      tags: body.tags,
-      metadata: metadataFor(body),
-      version: blueprint.serverVersion,
-      submittedBy: this.principalOf(req)?.id,
-    });
-    await this.registry.snapshotCapabilities(body.id, blueprint.serverVersion, blueprint.capabilities);
-    return { ok: true as const, toolCount: blueprint.tools.length, serverName: blueprint.serverName, approvalStatus: submitted.approvalStatus ?? "pending" };
-    });
+  }
+
+  private async runBlueprint(
+    kind: string,
+    body: ImportOpenApiBody | ImportSqlBody | ImportGraphqlBody | ImportMcpBody,
+  ): Promise<{
+    serverName: string;
+    serverVersion: string;
+    transport: TransportDescriptor;
+    capabilities: { tools: unknown[]; serverInfo?: { name?: string; version?: string } };
+    toolCount: number;
+  }> {
+    if (kind === "openapi") {
+      const b = body as ImportOpenApiBody;
+      const doc = await loadOpenApi({ url: b.url, path: b.path });
+      const bp = buildBlueprint(doc, b.baseUrl);
+      return {
+        serverName: bp.serverName,
+        serverVersion: bp.serverVersion,
+        transport: { type: "http", baseUrl: bp.baseUrl },
+        capabilities: {
+          tools: bp.tools,
+          serverInfo: { name: bp.serverName, version: bp.serverVersion },
+        },
+        toolCount: bp.tools.length,
+      };
+    }
+    if (kind === "sql") {
+      const b = body as ImportSqlBody;
+      const bp = await importPostgres({ dsn: b.dsn, allowedTables: b.allowedTables });
+      return {
+        serverName: bp.serverName,
+        serverVersion: bp.serverVersion,
+        transport: {
+          type: "sql",
+          dialect: "postgres",
+          dsn: b.dsn,
+          allowedTables: bp.allowedTables,
+          readOnly: b.readOnly ?? true,
+        },
+        capabilities: {
+          tools: bp.tools,
+          serverInfo: { name: bp.serverName, version: bp.serverVersion },
+        },
+        toolCount: bp.tools.length,
+      };
+    }
+    if (kind === "graphql") {
+      const b = body as ImportGraphqlBody;
+      const bp = await importGraphql({ endpoint: b.endpoint, headers: b.headers });
+      return {
+        serverName: bp.serverName,
+        serverVersion: bp.serverVersion,
+        transport: { type: "graphql", endpoint: bp.endpoint, headers: b.headers },
+        capabilities: {
+          tools: bp.tools,
+          serverInfo: { name: bp.serverName, version: bp.serverVersion },
+        },
+        toolCount: bp.tools.length,
+      };
+    }
+    if (kind === "mcp") {
+      const b = body as ImportMcpBody;
+      const bp = await importMcp({
+        transport: b.transport,
+        name: b.name,
+        transports: this.transports,
+      });
+      return {
+        serverName: bp.serverName,
+        serverVersion: bp.serverVersion,
+        transport: b.transport,
+        capabilities: bp.capabilities as never,
+        toolCount: bp.tools.length,
+      };
+    }
+    throw new Error(`unknown import kind: ${kind}`);
   }
 
   @Get("pending")
@@ -239,17 +315,48 @@ export class ImportsController {
 
   @Post(":id/approve")
   @RequirePermission(Actions.ServerApprove)
-  async approve(@Param("id") id: string, @Req() req: Request): Promise<{ ok: true }> {
+  async approve(
+    @Param("id") id: string,
+    @Req() req: Request,
+  ): Promise<{ ok: true; toolCount: number; serverName: string }> {
     const approver = this.principalOf(req)?.id ?? "unknown";
+    const server = await this.registry.get(id);
+    const meta = (server.metadata ?? {}) as { importSpec?: { kind: string; body: unknown } };
+    const spec = meta.importSpec;
+    if (!spec) {
+      throw new Error(`server ${id} has no importSpec — cannot approve (was it registered via /api/servers?)`);
+    }
+
+    // Run the blueprint step — this is the FIRST time upstream is touched.
+    let result;
+    try {
+      result = await this.runBlueprint(spec.kind, spec.body as never);
+    } catch (err) {
+      this.audit.logFromRequest(req as Request & { principal?: Principal }, {
+        action: "server.approve",
+        resource: { server: id },
+        outcome: "error",
+        metadata: { phase: "probe", error: (err as Error).message },
+      });
+      throw err;
+    }
+
+    // Persist blueprint output (name/transport/version may differ from user body).
+    await this.registry.updateSpec(id, {
+      name: result.serverName,
+      transport: result.transport,
+      version: result.serverVersion,
+    });
+    await this.registry.snapshotCapabilities(id, result.serverVersion, result.capabilities as never);
     await this.registry.approve(id, approver);
     await this.router.invalidate(id);
     this.audit.logFromRequest(req as Request & { principal?: Principal }, {
       action: "server.approve",
       resource: { server: id },
       outcome: "ok",
-      metadata: {},
+      metadata: { toolCount: result.toolCount, kind: spec.kind },
     });
-    return { ok: true as const };
+    return { ok: true as const, toolCount: result.toolCount, serverName: result.serverName };
   }
 
   @Post(":id/reject")

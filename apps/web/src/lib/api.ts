@@ -62,15 +62,25 @@ export async function importOpenApi(body: {
   url?: string;
   baseUrl?: string;
   upstreamOAuthProvider?: string;
-}): Promise<{ ok: boolean; toolCount: number }> {
+}): Promise<{ ok: boolean; approvalStatus: string; snapshotDeferred: boolean }> {
   const res = await fetch(`${API_URL}/api/imports/openapi`, {
     method: "POST",
     headers: { "content-type": "application/json", ...authHeaders() },
+    credentials: "include",
     body: JSON.stringify(body),
   });
-  const json = (await res.json()) as { ok?: boolean; toolCount?: number; message?: string };
+  const json = (await res.json()) as {
+    ok?: boolean;
+    approvalStatus?: string;
+    snapshotDeferred?: boolean;
+    message?: string;
+  };
   if (!res.ok) throw new Error(json.message ?? `import ${res.status}`);
-  return { ok: true, toolCount: json.toolCount ?? 0 };
+  return {
+    ok: true,
+    approvalStatus: json.approvalStatus ?? "pending",
+    snapshotDeferred: json.snapshotDeferred ?? true,
+  };
 }
 
 export type McpTransport =
@@ -95,20 +105,25 @@ export async function importMcp(body: {
   name?: string;
   transport: McpTransport;
   upstreamOAuthProvider?: string;
-}): Promise<{ ok: boolean; toolCount: number; serverName: string }> {
+}): Promise<{ ok: boolean; approvalStatus: string; snapshotDeferred: boolean }> {
   const res = await fetch(`${API_URL}/api/imports/mcp`, {
     method: "POST",
     headers: { "content-type": "application/json", ...authHeaders() },
+    credentials: "include",
     body: JSON.stringify(body),
   });
   const json = (await res.json()) as {
     ok?: boolean;
-    toolCount?: number;
-    serverName?: string;
+    approvalStatus?: string;
+    snapshotDeferred?: boolean;
     message?: string;
   };
   if (!res.ok) throw new Error(json.message ?? `import ${res.status}`);
-  return { ok: true, toolCount: json.toolCount ?? 0, serverName: json.serverName ?? body.id };
+  return {
+    ok: true,
+    approvalStatus: json.approvalStatus ?? "pending",
+    snapshotDeferred: json.snapshotDeferred ?? true,
+  };
 }
 
 export async function listPendingImports(): Promise<ServerRow[]> {
@@ -226,10 +241,11 @@ export async function importSql(body: {
   dsn: string;
   allowedTables?: string[];
   readOnly?: boolean;
-}): Promise<{ ok: boolean; toolCount: number; tables: string[] }> {
+}): Promise<{ ok: boolean; approvalStatus: string; snapshotDeferred: boolean }> {
   const res = await fetch(`${API_URL}/api/imports/sql`, {
     method: "POST",
     headers: { "content-type": "application/json", ...authHeaders() },
+    credentials: "include",
     body: JSON.stringify(body),
   });
   const json = await res.json();
@@ -242,10 +258,11 @@ export async function importGraphqlEndpoint(body: {
   workspaceId: string;
   projectId: string;
   endpoint: string;
-}): Promise<{ ok: boolean; toolCount: number }> {
+}): Promise<{ ok: boolean; approvalStatus: string; snapshotDeferred: boolean }> {
   const res = await fetch(`${API_URL}/api/imports/graphql`, {
     method: "POST",
     headers: { "content-type": "application/json", ...authHeaders() },
+    credentials: "include",
     body: JSON.stringify(body),
   });
   const json = await res.json();

@@ -102,7 +102,8 @@ function OpenApiForm({ pending, onSubmit }: SubmitProps): JSX.Element {
             baseUrl,
             upstreamOAuthProvider: upstream || undefined,
           });
-          return { id, msg: `Imported ${r.toolCount} tools` };
+          void r;
+          return { id, msg: `Submitted OpenAPI spec` };
         });
       }}
     >
@@ -146,7 +147,8 @@ function SqlForm({ pending, onSubmit }: SubmitProps): JSX.Element {
             allowedTables: list,
             readOnly,
           });
-          return { id, msg: `Imported ${r.toolCount} tools across ${r.tables.length} tables` };
+          void r;
+          return { id, msg: `Submitted SQL source` };
         });
       }}
     >
@@ -180,8 +182,8 @@ function GraphqlForm({ pending, onSubmit }: SubmitProps): JSX.Element {
       onSubmit={(e) => {
         e.preventDefault();
         void onSubmit(async () => {
-          const r = await importGraphqlEndpoint({ id, workspaceId: "default", projectId: "sandbox", endpoint });
-          return { id, msg: `Imported ${r.toolCount} tools` };
+          await importGraphqlEndpoint({ id, workspaceId: "default", projectId: "sandbox", endpoint });
+          return { id, msg: `Submitted GraphQL endpoint` };
         });
       }}
     >
@@ -233,14 +235,14 @@ function McpForm({ pending, onSubmit }: SubmitProps): JSX.Element {
           } else {
             transport = { type: "sse", url: endpoint, headers, auth };
           }
-          const r = await importMcp({
+          await importMcp({
             id,
             workspaceId: "default",
             projectId: "sandbox",
             transport,
             upstreamOAuthProvider: upstream || undefined,
           });
-          return { id, msg: `Mirrored ${r.serverName} — ${r.toolCount} tools` };
+          return { id, msg: `Submitted MCP mirror (${kind})` };
         });
       }}
     >

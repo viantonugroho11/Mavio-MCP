@@ -77,6 +77,25 @@ export class Registry {
     return this.toDescriptor(row);
   }
 
+  async updateSpec(
+    id: string,
+    patch: { name?: string; transport?: unknown; version?: string | null; metadata?: Record<string, unknown> },
+  ): Promise<ServerDescriptor> {
+    const set: Record<string, unknown> = { updated_at: sql`now()` };
+    if (patch.name !== undefined) set.name = patch.name;
+    if (patch.transport !== undefined) set.transport = JSON.stringify(patch.transport);
+    if (patch.version !== undefined) set.version = patch.version;
+    if (patch.metadata !== undefined) set.metadata = JSON.stringify(patch.metadata);
+    const row = await this.db
+      .updateTable("servers")
+      .set(set)
+      .where("id", "=", id)
+      .returningAll()
+      .executeTakeFirst();
+    if (!row) throw new NotFoundError(`server ${id}`);
+    return this.toDescriptor(row);
+  }
+
   async approve(id: string, approverId: string): Promise<ServerDescriptor> {
     const row = await this.db
       .updateTable("servers")
