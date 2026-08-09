@@ -58,6 +58,11 @@ export default async function ServersPage(): Promise<JSX.Element> {
               {s.workspaceId}/{s.projectId}
             </span>
             <span className="text-sm">{s.name}</span>
+            {s.approvalStatus && s.approvalStatus !== "approved" && (
+              <span className="text-[10px] font-mono uppercase tracking-widest px-2 py-0.5 border border-rule">
+                {s.approvalStatus}
+              </span>
+            )}
             <span className="ml-auto text-xs font-mono uppercase tracking-widest text-bronze">
               {s.sourceType} · {s.transport.type}
             </span>

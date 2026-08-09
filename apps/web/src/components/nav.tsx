@@ -31,6 +31,7 @@ export function Nav(): JSX.Element {
           <Link href="/" className="hover:text-ink">Servers</Link>
           <Link href="/playground" className="hover:text-ink">Playground</Link>
           <Link href="/imports" className="hover:text-ink">Imports</Link>
+          <Link href="/imports/pending" className="hover:text-ink">Pending</Link>
         </nav>
         <div className="ml-auto flex items-center gap-4">
           {loaded && me ? (

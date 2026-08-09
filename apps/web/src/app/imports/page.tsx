@@ -13,8 +13,8 @@ export default function ImportsPage(): JSX.Element {
   const [ok, setOk] = useState<string | null>(null);
 
   const finish = (id: string, msg: string): void => {
-    setOk(msg);
-    setTimeout(() => router.push(`/servers/${encodeURIComponent(id)}`), 600);
+    setOk(`${msg} — submitted for admin approval`);
+    setTimeout(() => router.push(`/imports/pending`), 800);
   };
 
   const wrap = async (fn: () => Promise<{ id: string; msg: string }>): Promise<void> => {

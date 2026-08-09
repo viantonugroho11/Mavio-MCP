@@ -16,6 +16,11 @@ export interface ServerRow {
   version?: string;
   status?: "healthy" | "degraded" | "down" | "unknown";
   lastCheckedAt?: string;
+  approvalStatus?: "pending" | "approved" | "rejected";
+  submittedBy?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
 }
 
 export interface ToolInfo {
@@ -104,6 +109,35 @@ export async function importMcp(body: {
   };
   if (!res.ok) throw new Error(json.message ?? `import ${res.status}`);
   return { ok: true, toolCount: json.toolCount ?? 0, serverName: json.serverName ?? body.id };
+}
+
+export async function listPendingImports(): Promise<ServerRow[]> {
+  const res = await fetch(`${API_URL}/api/imports/pending`, {
+    headers: authHeaders(),
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`list pending ${res.status}`);
+  return res.json();
+}
+
+export async function approveImport(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/imports/${encodeURIComponent(id)}/approve`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...authHeaders() },
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`approve ${res.status}`);
+}
+
+export async function rejectImport(id: string, reason: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/imports/${encodeURIComponent(id)}/reject`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...authHeaders() },
+    credentials: "include",
+    body: JSON.stringify({ reason }),
+  });
+  if (!res.ok) throw new Error(`reject ${res.status}`);
 }
 
 export async function callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
