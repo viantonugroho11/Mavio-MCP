@@ -36,8 +36,16 @@ export class ServersController {
     return (await this.registry.latestCapabilities(id)) ?? { tools: [] };
   }
 
+  /**
+   * Admin infrastructure path. Registers a server AND auto-approves it,
+   * bypassing the ADR-021 moderation queue. Guarded by `server:admin`
+   * (not `server:write`) so that `developer` role — which has
+   * `server:write` for read/list of imports — cannot use this endpoint to
+   * skip approval. Provisioning scripts / GitOps flows should use a
+   * principal with the `admin` role.
+   */
   @Post()
-  @RequirePermission(Actions.ServerWrite)
+  @RequirePermission(Actions.ServerAdmin)
   async register(@Body() body: ServerDescriptor): Promise<ServerDescriptor> {
     const result = await this.registry.register({ ...body, autoApprove: true });
     await this.router.invalidate(body.id);
