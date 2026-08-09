@@ -8,9 +8,13 @@ Actions defined in `@mavio/rbac`:
 
 ```
 workspace:admin · project:read · project:write · server:read · server:write
-server:invoke · server:admin · tool:invoke · plugin:install
-config:write · audit:read
+server:invoke · server:admin · server:import.submit · server:approve
+tool:invoke · plugin:install · config:write · audit:read
 ```
+
+**Import approval actions** (introduced in [ADR-021](/security/import-approval)):
+- `server:import.submit` — submit any import (openapi/sql/graphql/mcp). Granted to `developer` and `admin`.
+- `server:approve` — approve or reject pending imports. Granted to `admin` only.
 
 **Scopes:** `workspace` · `project` · `server` · `tool`.
 **Precedence:** explicit deny > explicit allow > inherited allow. Wildcards work on both the action

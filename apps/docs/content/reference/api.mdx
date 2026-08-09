@@ -19,6 +19,7 @@ mode.
 | Code | Meaning |
 |---|---|
 | `-32001` | Server / tool not found |
+| `-32002` | Server not approved (import pending or rejected) — see [ADR-021](/security/import-approval) |
 | `-32003` | RBAC denied |
 | `-32010` | Circuit breaker open |
 | `-32011` | Rate limit exceeded |
@@ -38,9 +39,10 @@ mode.
 | Method | Path | Guard |
 |---|---|---|
 | GET | `/api/servers` | `server:read` |
+| GET | `/api/servers?status=pending\|approved\|rejected\|any` | `server:read` (default `approved`) |
 | GET | `/api/servers/:id` | `server:read` |
 | GET | `/api/servers/:id/capabilities` | `server:read` |
-| POST | `/api/servers` | `server:write` |
+| POST | `/api/servers` | `server:write` (auto-approves — admin infra path) |
 | DELETE | `/api/servers/:id` | `server:write` |
 | GET | `/api/servers/:id/snapshots` | `server:read` |
 
@@ -52,11 +54,21 @@ mode.
 | POST | `/api/imports/sql` | `{ id, dsn, tables?, readOnly?, workspaceId, projectId, upstreamOAuthProvider? }` |
 | POST | `/api/imports/graphql` | `{ id, endpoint, headers?, auth?, selectionDepth?, upstreamOAuthProvider? }` |
 | POST | `/api/imports/mcp` | `{ id, transport: stdio\|http\|sse, name?, upstreamOAuthProvider? }` |
+| GET  | `/api/imports/pending` | — (list pending submissions) |
+| POST | `/api/imports/:id/approve` | — |
+| POST | `/api/imports/:id/reject` | `{ reason? }` |
 
-All guarded by `server:write`. The optional `upstreamOAuthProvider` is stored as
-`metadata.upstreamOAuthProvider`; the router then resolves a per-principal upstream credential
-before dispatch — see [Upstream OAuth](/security/upstream-oauth). The web console exposes it on
-every import tab, including the **MCP** tab (mirror a stdio/http/sse MCP server).
+Submit endpoints require `server:import.submit` (granted to `developer`, `admin`). Approve/reject
+require `server:approve` (granted to `admin` only). Every submit lands
+`approval_status='pending'` and does **not** invalidate the router — capabilities are snapshotted
+so admins can preview tools before approving. On approve, the router cache invalidates and traffic
+begins routing. Response payload includes `approvalStatus`. See
+[Import approval](/security/import-approval) for the full flow.
+
+The optional `upstreamOAuthProvider` is stored as `metadata.upstreamOAuthProvider`; the router
+resolves a per-principal upstream credential before dispatch — see
+[Upstream OAuth](/security/upstream-oauth). The web console exposes it on every import tab,
+including the **MCP** tab (mirror a stdio/http/sse MCP server).
 
 ## Router
 

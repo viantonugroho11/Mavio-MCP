@@ -9,6 +9,13 @@ import { Callout } from 'nextra/components'
 End-to-end recipes. All commands assume the server runs on `http://localhost:4000`. Substitute
 `MAVIO_ADMIN_API_KEY` where you see `$KEY`.
 
+<Callout type="warning">
+Imports now enter `approval_status='pending'` and are **not routable** until an admin approves. Use
+`$ADMIN_KEY` for the approve step, or `$KEY` throughout if it maps to a principal with `admin` role
+(which auto-satisfies both `server:import.submit` and `server:approve`). See
+[Import approval](/security/import-approval).
+</Callout>
+
 ## 1 — Import an OpenAPI service and call a tool
 
 ```bash
@@ -19,10 +26,14 @@ curl -X POST http://localhost:4000/api/imports/openapi \
        "url":"https://petstore3.swagger.io/api/v3/openapi.json",
        "workspaceId":"default","projectId":"sandbox"}'
 
-# 2. Verify it registered
+# 2. Approve the pending import (admin only)
+curl -X POST http://localhost:4000/api/imports/petstore/approve \
+  -H "authorization: Bearer $ADMIN_KEY"
+
+# 3. Verify it registered (approved rows only by default)
 curl -s http://localhost:4000/api/servers -H "authorization: Bearer $KEY" | jq
 
-# 3. List tools, then call one
+# 4. List tools, then call one
 curl -s -X POST http://localhost:4000/mcp -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools[0:3]'
 

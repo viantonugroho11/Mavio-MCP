@@ -12,6 +12,15 @@ import { Callout } from 'nextra/components'
   summarizes the release line.
 </Callout>
 
+## Unreleased
+
+**Import approval workflow ([ADR-021](/security/import-approval)).** User submissions
+now enter `pending` and require an admin to approve before the router will dispatch.
+Two new RBAC actions (`server:import.submit`, `server:approve`), three new endpoints
+(`GET /api/imports/pending`, `POST /api/imports/:id/approve`, `POST /api/imports/:id/reject`),
+new console page `/imports/pending`, JSON-RPC error `-32002` on non-approved dispatch,
+and a Next.js middleware that redirects unauthenticated web sessions to `/login`.
+
 ## 1.2.0 — 2026-08-05
 
 - Per-principal upstream OAuth vault hardening: `KeyWrapper` interface + Vault Transit KEK backend.

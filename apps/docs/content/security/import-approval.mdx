@@ -1,0 +1,121 @@
+---
+title: Import Approval
+---
+
+import { Callout } from 'nextra/components'
+
+# Import approval workflow
+
+Two-step gate for user-submitted MCP sources. Non-admin principals may **submit**
+imports; only admins may **approve** them. Router refuses to dispatch to a server
+whose `approval_status` is not `approved`.
+
+See [ADR-021](https://github.com/mavio-mcp/mavio-mcp/blob/main/docs/architecture/adr/ADR-021-import-approval-workflow.md)
+for the design rationale.
+
+## Roles
+
+| Role | `server:import.submit` | `server:approve` |
+|---|:-:|:-:|
+| `admin`     | ✅ | ✅ |
+| `developer` | ✅ | ❌ |
+| `viewer`    | ❌ | ❌ |
+| `operator`  | ❌ | ❌ |
+
+## Lifecycle
+
+1. **Submit** — user calls any `POST /api/imports/{openapi\|sql\|graphql\|mcp}`.
+   Response includes `approvalStatus: "pending"`. Row created in `servers` with
+   `submitted_by = <principal.id>`. Capabilities are snapshotted so admin can
+   preview tools.
+2. **Review** — admin calls `GET /api/imports/pending` (or opens
+   `/imports/pending` in the console).
+3. **Decide** — admin calls `POST /api/imports/:id/approve` or `POST /api/imports/:id/reject`
+   with `{ reason?: string }`. Both actions write an audit log entry and invalidate
+   the router capability cache.
+4. **Route** — approved servers appear in `tools/list` and accept `tools/call`.
+   Non-approved dispatch returns JSON-RPC error `-32002`.
+
+<Callout type="info">
+Re-submitting the same `id` (via `onConflict`) resets `approval_status` back to
+`pending` and clears `approved_by`, `approved_at`, `rejection_reason`. This
+prevents bypass by overwriting an approved server with new transport config.
+</Callout>
+
+## Data model
+
+New columns on `servers`:
+
+| Column | Type | Purpose |
+|---|---|---|
+| `approval_status`   | `text` (default `'pending'`) | `pending` \| `approved` \| `rejected` |
+| `submitted_by`      | `text` | Principal ID that submitted |
+| `approved_by`       | `text` | Principal ID that decided |
+| `approved_at`       | `timestamptz` | Decision timestamp |
+| `rejection_reason`  | `text` | Free-form reason (rejected only) |
+
+Index `servers_approval_status_idx` supports the admin queue query.
+
+## Admin infrastructure bypass
+
+`POST /api/servers` (direct register, admin infra path, guarded by `server:write`)
+uses `autoApprove: true` and lands the server in `approved` state immediately.
+Use this path only from provisioning scripts / GitOps flows — not from user-facing
+imports.
+
+## Router gate
+
+`router.service.ts` calls `registry.get(serverId)` and refuses dispatch with
+`-32002` when `descriptor.approvalStatus !== 'approved'`. Cache warming
+(`loadServers`) uses `registry.list()` which defaults to `approvalStatus='approved'`,
+so pending/rejected servers never appear in `tools/list`.
+
+## Audit trail
+
+Three new actions written to `audit_logs`:
+
+| Action | Actor | Resource |
+|---|---|---|
+| `server.import.submit` | submitter | `{ server, kind }` |
+| `server.approve`       | approver  | `{ server }` |
+| `server.reject`        | approver  | `{ server }` + `metadata.reason` |
+
+Query with the existing `/api/audit` endpoint.
+
+## Console
+
+- `/imports` — user submits sources (all 4 tabs). After submit, redirects to
+  `/imports/pending` with a "submitted for admin approval" banner.
+- `/imports/pending` — admin queue with Approve / Reject buttons. Reject prompts
+  for a reason.
+- `/` (Servers list) — approved servers only by default. Non-approved rows show
+  a `pending` or `rejected` badge when filter includes them.
+- **Login gate** — Next.js middleware redirects any unauthenticated request
+  (missing `mavio_sid` cookie) to `/login?return_to=<path>`.
+
+## cURL — end to end
+
+```bash
+# 1. Developer submits an MCP mirror (using session cookie or dev-role API key)
+curl -X POST http://localhost:4000/api/imports/mcp \
+  -H "content-type: application/json" -H "authorization: Bearer $DEV_KEY" \
+  -d '{"id":"filesystem","workspaceId":"default","projectId":"sandbox",
+       "transport":{"type":"stdio","command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}}'
+# → { "ok": true, "toolCount": 12, "serverName": "filesystem", "approvalStatus": "pending" }
+
+# 2. Admin lists queue
+curl -s http://localhost:4000/api/imports/pending \
+  -H "authorization: Bearer $ADMIN_KEY" | jq '.[].id'
+# → "filesystem"
+
+# 3. Admin approves
+curl -X POST http://localhost:4000/api/imports/filesystem/approve \
+  -H "authorization: Bearer $ADMIN_KEY"
+# → { "ok": true }
+
+# 4. Server now routable
+curl -X POST http://localhost:4000/mcp \
+  -H "content-type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call",
+       "params":{"name":"filesystem.list_directory","arguments":{"path":"/tmp"}}}'
+```

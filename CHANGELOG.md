@@ -4,6 +4,28 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+### Added — Import approval workflow (ADR-021)
+- All four import endpoints (`/api/imports/{openapi,sql,graphql,mcp}`) now require
+  `server:import.submit` (was `server:write`) and land the server row with
+  `approval_status='pending'`.
+- New admin endpoints: `GET /api/imports/pending`, `POST /api/imports/:id/approve`,
+  `POST /api/imports/:id/reject` — all require `server:approve`.
+- `Registry.register()` accepts `submittedBy` and `autoApprove`; `Registry.approve()`
+  and `Registry.reject()` new. `Registry.list()` defaults to `approvalStatus='approved'`.
+- Router (`router.service.ts`) refuses dispatch to non-approved servers with JSON-RPC
+  `-32002`. `tools/list` no longer surfaces pending/rejected servers.
+- New RBAC actions `server:import.submit` (developer + admin) and `server:approve` (admin).
+- Migration: added `approval_status`, `submitted_by`, `approved_by`, `approved_at`,
+  `rejection_reason` columns + index on `approval_status`.
+- Audit log entries: `server.import.submit`, `server.approve`, `server.reject`.
+- Web console: new `/imports/pending` admin page, "Pending" nav link, status badge on
+  server list, submit redirects to pending queue with banner.
+- Web: Next.js middleware guards every non-`/login` route — missing `mavio_sid` cookie
+  redirects to `/login?return_to=<path>`.
+- Direct `POST /api/servers` (admin infra path) uses `autoApprove: true` so provisioning
+  scripts / GitOps flows are unaffected.
+
+
 ## [1.2.0] — 2026-08-05
 
 Phase 5.2 + 5.3 complete. Vault becomes pluggable (Vault Transit shipped, KMS plugins ready for the marketplace), key rotation runs from the admin API + hot-reloads across replicas, PKCE state moves to Redis (multi-node consent flows), and a background sweep drives ADR-019's retire gate on a schedule.

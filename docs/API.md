@@ -66,7 +66,8 @@ Full-duplex. Client sends JSON-RPC frames; server writes correlated responses. 1
 | GET | `/api/servers` | `server:read` | — |
 | GET | `/api/servers/:id` | `server:read` | — |
 | GET | `/api/servers/:id/capabilities` | `server:read` | — |
-| POST | `/api/servers` | `server:write` | `ServerDescriptor` |
+| POST | `/api/servers` | `server:write` | `ServerDescriptor` (auto-approves — admin infra path) |
+| GET | `/api/servers?status=pending\|approved\|rejected\|any` | `server:read` | default `approved` |
 | DELETE | `/api/servers/:id` | `server:write` | — |
 | GET | `/api/servers/:id/snapshots` | `server:read` | — |
 
@@ -76,10 +77,17 @@ Full-duplex. Client sends JSON-RPC frames; server writes correlated responses. 1
 
 | Method | Path | Guard | Notes |
 |---|---|---|---|
-| POST | `/api/imports/openapi` | `server:write` | `{ id, url?, path?, baseUrl?, workspaceId, projectId, upstreamOAuthProvider? }` |
-| POST | `/api/imports/sql` | `server:write` | `{ id, dsn, tables?, readOnly?, workspaceId, projectId, upstreamOAuthProvider? }` |
-| POST | `/api/imports/graphql` | `server:write` | `{ id, endpoint, headers?, auth?, selectionDepth?, upstreamOAuthProvider? }` |
-| POST | `/api/imports/mcp` | `server:write` | `{ id, transport: stdio\|http\|sse, name?, upstreamOAuthProvider? }` |
+| POST | `/api/imports/openapi` | `server:import.submit` | `{ id, url?, path?, baseUrl?, workspaceId, projectId, upstreamOAuthProvider? }` |
+| POST | `/api/imports/sql` | `server:import.submit` | `{ id, dsn, tables?, readOnly?, workspaceId, projectId, upstreamOAuthProvider? }` |
+| POST | `/api/imports/graphql` | `server:import.submit` | `{ id, endpoint, headers?, auth?, selectionDepth?, upstreamOAuthProvider? }` |
+| POST | `/api/imports/mcp` | `server:import.submit` | `{ id, transport: stdio\|http\|sse, name?, upstreamOAuthProvider? }` |
+| GET  | `/api/imports/pending` | `server:approve` | admin queue |
+| POST | `/api/imports/:id/approve` | `server:approve` | — |
+| POST | `/api/imports/:id/reject` | `server:approve` | `{ reason? }` |
+
+All submissions land `approval_status='pending'` and are **not routable** until approved.
+Router returns JSON-RPC `-32002` on dispatch against non-approved server IDs. See
+[ADR-021](architecture/adr/ADR-021-import-approval-workflow.md).
 
 `upstreamOAuthProvider` (optional) is stored as `metadata.upstreamOAuthProvider` on the
 resulting server descriptor. When set, the router resolves a per-principal upstream credential

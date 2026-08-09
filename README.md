@@ -156,6 +156,12 @@ mavio import graphql --id shopify --endpoint https://shop.example/graphql --auth
 mavio import mcp --id filesystem --stdio "npx -y @modelcontextprotocol/server-filesystem /tmp"
 ```
 
+> **Note.** All imports enter `approval_status='pending'` and are **not routable** until an admin
+> approves via `POST /api/imports/:id/approve` (or the `/imports/pending` console page). Direct
+> `POST /api/servers` (admin infra path) auto-approves. See
+> [ADR-021](docs/architecture/adr/ADR-021-import-approval-workflow.md) and
+> [Import approval docs](docs/API.md#imports).
+
 ---
 
 ## 🔌 Connect a client
