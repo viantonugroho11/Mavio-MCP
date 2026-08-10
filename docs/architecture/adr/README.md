@@ -27,6 +27,7 @@ Every non-trivial architectural decision lives here as an immutable, numbered re
 | [ADR-019](ADR-019-vault-key-rotation.md) | Vault key-encryption-key rotation (envelope encryption) | Proposed |
 | [ADR-020](ADR-020-trace-inspector.md) | Trace Inspector — per-invoke transform tracing, replay, schema-drift | Proposed |
 | [ADR-021](ADR-021-import-approval-workflow.md) | Import approval workflow (submit → admin approve/reject) | Accepted |
+| [ADR-022](ADR-022-event-bridge.md) | Event Bridge — webhook/stream ingress + notification bus egress | Proposed |
 
 ## Template
 New ADRs must follow [`ADR-000-template.md`](ADR-000-template.md).
