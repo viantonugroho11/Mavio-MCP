@@ -56,11 +56,11 @@ describe("RouterController Streamable HTTP", () => {
     expect(result).toEqual({ jsonrpc: "2.0", id: 1, result: { ok: true } });
   });
 
-  it("non-initialize without any session returns 400", async () => {
+  it("plain POST without any session dispatches statelessly", async () => {
     const res = mkRes();
     const frame = { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} } as any;
-    await controller.handle(frame, mkReq(), res, undefined);
-    expect((res as any)._state.status).toBe(400);
+    const result = await controller.handle(frame, mkReq(), res, undefined);
+    expect(result).toEqual({ jsonrpc: "2.0", id: 1, result: { ok: true } });
   });
 
   it("valid Mcp-Session-Id + Accept:application/json returns JSON body", async () => {

@@ -89,6 +89,24 @@ describe("StreamableHttpSessionRegistry", () => {
     expect(r.touch("nope")).toBe(false);
   });
 
+  it("pushNotification bumps lastSeenAt, extending TTL for push-only sessions", () => {
+    const r = new StreamableHttpSessionRegistry();
+    const sid = r.create();
+
+    const pushedAt = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(pushedAt);
+    r.pushNotification(sid, { jsonrpc: "2.0", method: "keepalive" } as any);
+    vi.restoreAllMocks();
+
+    // Not yet expired relative to the push time.
+    expect(r.reapExpired(pushedAt + SESSION_TTL_MS)).toBe(0);
+    expect(r.has(sid)).toBe(true);
+
+    // Expired once past TTL from the push time.
+    expect(r.reapExpired(pushedAt + SESSION_TTL_MS + 1)).toBe(1);
+    expect(r.has(sid)).toBe(false);
+  });
+
   it("detachPushStream nulls stream but keeps session", () => {
     const r = new StreamableHttpSessionRegistry();
     const sid = r.create();

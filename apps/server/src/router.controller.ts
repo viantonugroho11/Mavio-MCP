@@ -69,12 +69,6 @@ export class RouterController {
       return response;
     }
 
-    // No session, non-initialize: reject
-    if (!sid) {
-      res.status(400).end();
-      return;
-    }
-
     // Fallback: plain POST /mcp (legacy stateless), pass through
     return this.router.handle(frame, principal);
   }

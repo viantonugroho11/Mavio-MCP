@@ -67,6 +67,7 @@ export class StreamableHttpSessionRegistry implements OnModuleInit, OnModuleDest
   pushNotification(sessionId: string, frame: MCPFrame): boolean {
     const s = this.sessions.get(sessionId);
     if (!s) return false;
+    s.lastSeenAt = Date.now();
     const chunk = `event: message\ndata: ${JSON.stringify(frame)}\n\n`;
     if (s.pushStream) {
       try {
