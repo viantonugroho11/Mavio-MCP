@@ -1,5 +1,5 @@
 import { Global, Inject, Module, type OnModuleInit } from "@nestjs/common";
-import { Registry, createDb, type Database } from "@mavio/registry";
+import { Registry, EventRouteRepository, createDb, type Database } from "@mavio/registry";
 import type { Kysely } from "kysely";
 import type { MavioConfig } from "@mavio/config";
 import { TransportManager } from "@mavio/transport";
@@ -8,6 +8,7 @@ import { MAVIO_CONFIG } from "./config.module.js";
 export const REGISTRY = Symbol("REGISTRY");
 export const REGISTRY_DB = Symbol("REGISTRY_DB");
 export const TRANSPORT_MANAGER = Symbol("TRANSPORT_MANAGER");
+export const EVENT_ROUTE_REPO = Symbol("EVENT_ROUTE_REPO");
 
 @Global()
 @Module({
@@ -26,8 +27,14 @@ export const TRANSPORT_MANAGER = Symbol("TRANSPORT_MANAGER");
       provide: TRANSPORT_MANAGER,
       useFactory: (): TransportManager => new TransportManager(),
     },
+    {
+      provide: EVENT_ROUTE_REPO,
+      inject: [REGISTRY_DB],
+      useFactory: (db: Kysely<Database>): EventRouteRepository =>
+        new EventRouteRepository(db),
+    },
   ],
-  exports: [REGISTRY, REGISTRY_DB, TRANSPORT_MANAGER],
+  exports: [REGISTRY, REGISTRY_DB, TRANSPORT_MANAGER, EVENT_ROUTE_REPO],
 })
 export class RegistryModule implements OnModuleInit {
   constructor(

@@ -11,7 +11,7 @@ import { csrfProtection } from "./csrf.middleware.js";
 
 async function bootstrap(): Promise<void> {
   bootstrapTracing({ serviceName: "mavio-mcp-server", serviceVersion: "0.1.0" });
-  const app = await NestFactory.create(AppModule, { bufferLogs: false });
+  const app = await NestFactory.create(AppModule, { bufferLogs: false, rawBody: true });
   // Reflect the request origin AND allow credentials so the web console can
   // read /auth/me and send the mavio_sid session cookie cross-origin.
   app.enableCors({ origin: true, credentials: true });

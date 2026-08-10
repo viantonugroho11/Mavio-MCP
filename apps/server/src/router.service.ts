@@ -4,7 +4,13 @@ import { CircuitBreaker, CircuitOpenError, NotFoundError } from "@mavio/core";
 import { Actions, type PolicyEngine } from "@mavio/rbac";
 import { Registry } from "@mavio/registry";
 import { TransportManager, type Session } from "@mavio/transport";
-import { CapabilityCache, InvalidationBus, RateLimiter, type Redis } from "@mavio/cache";
+import {
+  CapabilityCache,
+  InvalidationBus,
+  NotificationBus,
+  RateLimiter,
+  type Redis,
+} from "@mavio/cache";
 import type { MavioConfig } from "@mavio/config";
 import {
   BREAKER_STATE_VALUE,
@@ -15,7 +21,12 @@ import {
 } from "@mavio/observability";
 import { request } from "undici";
 import { REGISTRY, TRANSPORT_MANAGER } from "./registry.module.js";
-import { CAPABILITY_CACHE, INVALIDATION_BUS, REDIS } from "./cache.module.js";
+import {
+  CAPABILITY_CACHE,
+  INVALIDATION_BUS,
+  NOTIFICATION_BUS,
+  REDIS,
+} from "./cache.module.js";
 import { POLICY_ENGINE } from "./rbac.module.js";
 import { MAVIO_CONFIG } from "./config.module.js";
 import { METRICS } from "./observability.module.js";
@@ -43,6 +54,7 @@ export class RouterService implements OnModuleInit {
     @Inject(TRANSPORT_MANAGER) private readonly transports: TransportManager,
     @Inject(CAPABILITY_CACHE) private readonly cache: CapabilityCache,
     @Inject(INVALIDATION_BUS) private readonly bus: InvalidationBus,
+    @Inject(NOTIFICATION_BUS) private readonly notify: NotificationBus,
     @Inject(POLICY_ENGINE) private readonly policy: PolicyEngine,
     @Inject(MAVIO_CONFIG) config: MavioConfig,
     @Inject(REDIS) redis: Redis,
@@ -70,7 +82,15 @@ export class RouterService implements OnModuleInit {
   async invalidate(serverId?: string): Promise<void> {
     await this.cache.invalidate(serverId);
     if (serverId) this.sql.invalidate(serverId);
-    await this.bus.publish(serverId ? { kind: "server", serverId } : { kind: "servers" });
+    const evt = serverId ? { kind: "server" as const, serverId } : { kind: "servers" as const };
+    await this.bus.publish(evt);
+    // Egress fanout (ADR-022 M3): every capability change turns into a
+    // durable notification so late/reconnecting subscribers replay via
+    // Last-Event-ID rather than missing the frame.
+    await this.notify.publish({
+      method: "notifications/tools/list_changed",
+      params: evt,
+    });
   }
 
   private async loadServers(): Promise<ServerDescriptor[]> {

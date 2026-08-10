@@ -34,6 +34,10 @@ import { UpstreamAuthModule } from "./upstream-auth.module.js";
 import { UpstreamAuthController } from "./upstream-auth.controller.js";
 import { UpstreamAdminController } from "./upstream-admin.controller.js";
 import { VaultAdminController } from "./vault-admin.controller.js";
+import { EventsController } from "./events.controller.js";
+import { EventDispatcherService } from "./event-dispatcher.service.js";
+import { EventBridgeSupervisor } from "./event-bridge.supervisor.js";
+import { EVENT_CONSUMER_REGISTRY, EventConsumerRegistry } from "./event-consumer.js";
 
 @Module({
   imports: [
@@ -67,6 +71,7 @@ import { VaultAdminController } from "./vault-admin.controller.js";
     UpstreamAuthController,
     UpstreamAdminController,
     VaultAdminController,
+    EventsController,
   ],
   providers: [
     RouterService,
@@ -77,6 +82,12 @@ import { VaultAdminController } from "./vault-admin.controller.js";
     GraphqlDispatcher,
     HealthProber,
     SseSessionRegistry,
+    EventDispatcherService,
+    EventBridgeSupervisor,
+    {
+      provide: EVENT_CONSUMER_REGISTRY,
+      useFactory: (): EventConsumerRegistry => new EventConsumerRegistry(),
+    },
   ],
 })
 export class AppModule {}
