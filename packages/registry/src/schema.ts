@@ -120,6 +120,28 @@ export interface PrincipalUpstreamCredentialsTable {
   updated_at: Generated<Date>;
 }
 
+export interface EventRoutesTable {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  name: string;
+  source_type: string;
+  match: unknown;
+  mcp_target: unknown;
+  principal_id: string;
+  schema_ref: string | null;
+  schema_json: unknown | null;
+  auth: unknown;
+  enabled: Generated<boolean>;
+  approval_status: Generated<string>;
+  submitted_by: string | null;
+  approved_by: string | null;
+  approved_at: Date | null;
+  rejection_reason: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   servers: ServersTable;
   capability_snapshots: CapabilitySnapshotsTable;
@@ -131,4 +153,5 @@ export interface Database {
   plugins: PluginsTable;
   audit_logs: AuditLogsTable;
   principal_upstream_credentials: PrincipalUpstreamCredentialsTable;
+  event_routes: EventRoutesTable;
 }

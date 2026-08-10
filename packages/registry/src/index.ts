@@ -27,6 +27,18 @@ export {
   type AuditLogRecord,
   type AuditLogFilter,
 } from "./audit-repo.js";
+export {
+  EventRouteRepository,
+  type EventRoute,
+  type CreateEventRouteInput,
+  type ListEventRouteFilter,
+  type EventSourceType,
+  type EventMatch,
+  type WebhookMatch,
+  type StreamMatch,
+  type McpTarget,
+  type EventAuth,
+} from "./event-route-repo.js";
 
 export interface RegisterInput extends Omit<ServerDescriptor, "version"> {
   version?: string;

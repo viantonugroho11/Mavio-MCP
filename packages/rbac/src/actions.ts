@@ -12,6 +12,9 @@ export const Actions = {
   PluginInstall: "plugin:install",
   ConfigWrite: "config:write",
   AuditRead: "audit:read",
+  EventRouteSubmit: "event:route.submit",
+  EventRouteApprove: "event:route.approve",
+  EventPublish: "event:publish",
 } as const;
 
 export type Action = (typeof Actions)[keyof typeof Actions];

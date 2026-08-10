@@ -21,6 +21,9 @@ export const BUILTIN_ROLES: Role[] = [
       { action: Actions.ToolInvoke, scope: {}, effect: "allow" },
       { action: Actions.ConfigWrite, scope: {}, effect: "allow" },
       { action: Actions.AuditRead, scope: {}, effect: "allow" },
+      { action: Actions.EventRouteSubmit, scope: {}, effect: "allow" },
+      { action: Actions.EventRouteApprove, scope: {}, effect: "allow" },
+      { action: Actions.EventPublish, scope: {}, effect: "allow" },
     ],
   },
   {
@@ -32,6 +35,7 @@ export const BUILTIN_ROLES: Role[] = [
       { action: Actions.ServerImportSubmit, scope: {}, effect: "allow" },
       { action: Actions.ServerInvoke, scope: {}, effect: "allow" },
       { action: Actions.ToolInvoke, scope: {}, effect: "allow" },
+      { action: Actions.EventRouteSubmit, scope: {}, effect: "allow" },
     ],
   },
   {

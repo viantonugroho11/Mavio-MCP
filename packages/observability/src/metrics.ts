@@ -17,6 +17,8 @@ export class MavioMetrics {
   readonly upstreamTokenRefresh: Counter<string>;
   readonly upstreamTokenDenied: Counter<string>;
   readonly vaultDecryptFail: Counter<string>;
+  readonly eventIngressTotal: Counter<string>;
+  readonly eventIngressDuration: Histogram<string>;
 
   constructor(prefix = "mavio_") {
     this.registry = new Registry();
@@ -83,6 +85,21 @@ export class MavioMetrics {
       name: `${prefix}vault_decrypt_fail_total`,
       help: "Vault decrypt failures (retired key, tampered ciphertext, corrupt row)",
       labelNames: ["reason"] as const,
+      registers: [this.registry],
+    });
+
+    this.eventIngressTotal = new Counter({
+      name: `${prefix}event_ingress_total`,
+      help: "Event Bridge ingress requests (ADR-022)",
+      labelNames: ["source", "route", "outcome"] as const,
+      registers: [this.registry],
+    });
+
+    this.eventIngressDuration = new Histogram({
+      name: `${prefix}event_ingress_duration_seconds`,
+      help: "Event Bridge ingress dispatch latency",
+      labelNames: ["source", "route", "outcome"] as const,
+      buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
       registers: [this.registry],
     });
   }

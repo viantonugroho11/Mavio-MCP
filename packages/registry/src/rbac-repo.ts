@@ -116,6 +116,15 @@ export class RbacRepository implements RoleProvider {
     return rows.map((r) => this.toPrincipal(r));
   }
 
+  async findById(id: string): Promise<Principal | null> {
+    const row = await this.db
+      .selectFrom("principals")
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirst();
+    return row ? this.toPrincipal(row) : null;
+  }
+
   async findByApiKey(key: string): Promise<Principal | null> {
     const hash = hashApiKey(key);
     const row = await this.db

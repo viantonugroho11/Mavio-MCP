@@ -225,6 +225,50 @@ async function main(): Promise<void> {
       ON principal_upstream_credentials (key_id);
   `.execute(db);
 
+  // Event Bridge routes (ADR-022).
+  await sql`
+    CREATE TABLE IF NOT EXISTS event_routes (
+      id                text PRIMARY KEY,
+      workspace_id      text NOT NULL,
+      project_id        text NOT NULL,
+      name              text NOT NULL,
+      source_type       text NOT NULL,
+      match             jsonb NOT NULL,
+      mcp_target        jsonb NOT NULL,
+      principal_id      text NOT NULL REFERENCES principals(id) ON DELETE RESTRICT,
+      schema_ref        text,
+      auth              jsonb NOT NULL DEFAULT '{}'::jsonb,
+      enabled           boolean NOT NULL DEFAULT true,
+      approval_status   text NOT NULL DEFAULT 'pending',
+      submitted_by      text,
+      approved_by       text,
+      approved_at       timestamptz,
+      rejection_reason  text,
+      created_at        timestamptz NOT NULL DEFAULT now(),
+      updated_at        timestamptz NOT NULL DEFAULT now()
+    );
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS event_routes_workspace_idx
+      ON event_routes (workspace_id, project_id);
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS event_routes_approval_status_idx
+      ON event_routes (approval_status);
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS event_routes_source_type_idx
+      ON event_routes (source_type) WHERE enabled = true;
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE event_routes
+      ADD COLUMN IF NOT EXISTS schema_json jsonb;
+  `.execute(db);
+
   await db.destroy();
   console.log("migrations applied");
 }
