@@ -49,13 +49,21 @@ export interface WsTransportDescriptor {
   subprotocol?: string;
 }
 
+export interface StreamableHttpTransportDescriptor {
+  type: "streamable-http";
+  url: string;
+  headers?: Record<string, string>;
+  auth?: { type: "bearer"; secretRef: string } | { type: "none" };
+}
+
 export type TransportDescriptor =
   | StdioTransportDescriptor
   | HttpTransportDescriptor
   | SseTransportDescriptor
   | WsTransportDescriptor
   | SqlTransportDescriptor
-  | GraphqlTransportDescriptor;
+  | GraphqlTransportDescriptor
+  | StreamableHttpTransportDescriptor;
 
 export interface ToolDefinition {
   name: string;
