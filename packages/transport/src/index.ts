@@ -4,6 +4,7 @@ import { StdioTransport } from "./stdio.js";
 import { HttpTransport } from "./http.js";
 import { SseTransport } from "./sse.js";
 import { WsTransport } from "./ws.js";
+import { StreamableHttpTransport } from "./streamable-http.js";
 
 export interface Session {
   send(frame: MCPFrame): Promise<MCPFrame>;
@@ -23,6 +24,7 @@ export class TransportManager {
     this.register(new HttpTransport());
     this.register(new SseTransport());
     this.register(new WsTransport());
+    this.register(new StreamableHttpTransport());
   }
 
   register(transport: Transport): void {
@@ -45,3 +47,4 @@ export { StdioTransport } from "./stdio.js";
 export { HttpTransport } from "./http.js";
 export { SseTransport } from "./sse.js";
 export { WsTransport } from "./ws.js";
+export { StreamableHttpTransport } from "./streamable-http.js";
