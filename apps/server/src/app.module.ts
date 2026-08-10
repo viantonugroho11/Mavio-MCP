@@ -38,6 +38,8 @@ import { EventsController } from "./events.controller.js";
 import { EventDispatcherService } from "./event-dispatcher.service.js";
 import { EventBridgeSupervisor } from "./event-bridge.supervisor.js";
 import { EVENT_CONSUMER_REGISTRY, EventConsumerRegistry } from "./event-consumer.js";
+import { StreamableHttpController } from "./streamable-http.controller.js";
+import { StreamableHttpSessionRegistry } from "./streamable-http.session-registry.js";
 
 @Module({
   imports: [
@@ -64,6 +66,7 @@ import { EVENT_CONSUMER_REGISTRY, EventConsumerRegistry } from "./event-consumer
     AuthController,
     LoginController,
     SseController,
+    StreamableHttpController,
     PluginsController,
     MetricsController,
     AuditController,
@@ -82,6 +85,7 @@ import { EVENT_CONSUMER_REGISTRY, EventConsumerRegistry } from "./event-consumer
     GraphqlDispatcher,
     HealthProber,
     SseSessionRegistry,
+    StreamableHttpSessionRegistry,
     EventDispatcherService,
     EventBridgeSupervisor,
     {

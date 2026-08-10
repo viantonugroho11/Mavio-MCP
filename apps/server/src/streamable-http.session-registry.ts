@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import type { Response } from "express";
 import { randomUUID } from "node:crypto";
 import type { MCPFrame } from "@mavio/core";
@@ -15,8 +15,9 @@ interface Session {
 }
 
 @Injectable()
-export class StreamableHttpSessionRegistry {
+export class StreamableHttpSessionRegistry implements OnModuleInit, OnModuleDestroy {
   private readonly sessions = new Map<string, Session>();
+  private reaper: NodeJS.Timeout | null = null;
 
   create(): string {
     const sessionId = randomUUID();
@@ -103,5 +104,15 @@ export class StreamableHttpSessionRegistry {
       }
     }
     return n;
+  }
+
+  onModuleInit(): void {
+    this.reaper = setInterval(() => this.reapExpired(), 60 * 60 * 1000);
+  }
+
+  onModuleDestroy(): void {
+    if (this.reaper) clearInterval(this.reaper);
+    this.reaper = null;
+    for (const sid of Array.from(this.sessions.keys())) this.delete(sid);
   }
 }
