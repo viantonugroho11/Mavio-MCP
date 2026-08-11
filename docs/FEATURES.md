@@ -23,7 +23,10 @@ Downstream (Mavio → MCP clients):
 | Route | Transport | Notes |
 |---|---|---|
 | `POST /mcp` | HTTP-JSON | Default; accepts a `?sid=` to fanout onto SSE |
-| `GET /mcp/sse` | Server-Sent Events | Emits `event: endpoint` first; per-call fanout via `sid` |
+| `GET /mcp/sse` | Server-Sent Events | Classic MCP HTTP+SSE; emits `event: endpoint` first; per-call fanout via `sid` |
+| `POST /mcp` (+ `Mcp-Session-Id`) | Streamable HTTP (MCP 2025-03) | Stateful mode B; reply is JSON or SSE per `Accept` |
+| `GET /mcp` (+ `Mcp-Session-Id`) | Streamable HTTP push | Server-initiated notifications; 100-frame buffer, 15s keep-alive |
+| `DELETE /mcp` (+ `Mcp-Session-Id`) | Streamable HTTP | Terminates session |
 | `WS /mcp/ws` | WebSocket | Full-duplex; 15s ping keep-alive |
 
 Upstream (Mavio → backend MCP servers), from `@mavio/transport`:
@@ -31,6 +34,7 @@ Upstream (Mavio → backend MCP servers), from `@mavio/transport`:
 - `stdio` — child process
 - `http` — HTTP-JSON to a base URL
 - `sse` — classic MCP HTTP+SSE (endpoint + response frames)
+- `streamable-http` — MCP 2025-03 Streamable HTTP (`Mcp-Session-Id` header, SSE or JSON replies)
 - `ws` — WebSocket (`WsTransport` / `WsSession`)
 - `sql` — direct Postgres dispatch (`SqlDispatcher`)
 - `graphql` — direct GraphQL dispatch (`GraphqlDispatcher`)

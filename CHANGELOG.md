@@ -4,6 +4,28 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-08-11
+
+### Added — MCP Streamable HTTP transport (ADR-023)
+- New MCP 2025-03 **Streamable HTTP** transport (stateful mode B) live alongside
+  classic HTTP+SSE. Endpoints on the same `/mcp` route, differentiated by method
+  and by the `Mcp-Session-Id` header:
+  - `POST /mcp` — `initialize` frame without session returns a server-generated
+    `Mcp-Session-Id` header + JSON body. Subsequent POSTs carrying the header
+    reply either `application/json` or `text/event-stream` per client `Accept`.
+  - `GET /mcp` + `Mcp-Session-Id` — opens the SSE push stream for
+    server-to-client notifications, drains buffered frames on attach, keep-alive
+    every 15s.
+  - `DELETE /mcp` + `Mcp-Session-Id` — terminates the session.
+- New `StreamableHttpSessionRegistry`: 24h TTL, hourly reaper, per-session
+  notification buffer capped at 100 frames before the GET stream is open.
+- Client transport: `StreamableHttpTransport` in `@mavio/transport`
+  (undici-based). Parses both SSE and JSON response bodies. Registered in
+  `TransportManager` under kind `streamable-http`.
+- `StreamableHttpTransportDescriptor` added to `@mavio/core` transport union.
+- ADR-023 documents the design; classic `/mcp/sse` + `POST /mcp?sid=` and
+  stateless POST /mcp remain unchanged.
+
 ### Security — P0 hardening on the approval workflow
 - **Deferred upstream probe.** Import submit endpoints no longer connect to
   the upstream. `loadOpenApi` HTTP fetch, `importPostgres` DB connect,

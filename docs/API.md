@@ -57,6 +57,25 @@ Followed by:
 
 Full-duplex. Client sends JSON-RPC frames; server writes correlated responses. 15s WS ping.
 
+### Streamable HTTP (MCP 2025-03, mode B)
+
+Modern MCP transport keyed by the `Mcp-Session-Id` header. Shares the `/mcp`
+route with classic POST — differentiated by method and by header presence.
+
+- `POST /mcp` (no `Mcp-Session-Id`, frame is `initialize`) → creates a session,
+  responds with header `Mcp-Session-Id: <uuid>` + JSON body. Any other method
+  without a session returns `400`.
+- `POST /mcp` + `Mcp-Session-Id: <uuid>` → dispatches frame. If the request
+  carries `Accept: text/event-stream`, the reply is streamed as one SSE
+  `event: message` frame and the stream ends; otherwise `application/json`.
+- `GET /mcp` + `Mcp-Session-Id: <uuid>` → opens the push SSE stream for
+  server-initiated notifications. Drains up to 100 buffered frames on attach.
+  Keep-alive comment every 15s.
+- `DELETE /mcp` + `Mcp-Session-Id: <uuid>` → terminates the session (`200`).
+
+Sessions expire 24h after last activity; hourly reaper. Unknown or expired
+`Mcp-Session-Id` returns `404` on any method.
+
 ---
 
 ## Servers
