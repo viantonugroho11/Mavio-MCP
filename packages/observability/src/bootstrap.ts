@@ -1,12 +1,9 @@
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { Resource } from "@opentelemetry/resources";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { BatchSpanProcessor, ConsoleSpanExporter } from "@opentelemetry/sdk-trace-base";
-import {
-  SEMRESATTRS_SERVICE_NAME,
-  SEMRESATTRS_SERVICE_VERSION,
-} from "@opentelemetry/semantic-conventions";
+import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";
 
 export interface BootstrapOptions {
   serviceName?: string;
@@ -25,9 +22,9 @@ export function bootstrapTracing(opts: BootstrapOptions = {}): NodeSDK | null {
 
   if (opts.debug) diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 
-  const resource = new Resource({
-    [SEMRESATTRS_SERVICE_NAME]: opts.serviceName ?? "mavio-mcp",
-    [SEMRESATTRS_SERVICE_VERSION]: opts.serviceVersion ?? "0.1.0",
+  const resource = resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: opts.serviceName ?? "mavio-mcp",
+    [ATTR_SERVICE_VERSION]: opts.serviceVersion ?? "0.1.0",
   });
 
   const exporter = endpoint
@@ -36,7 +33,7 @@ export function bootstrapTracing(opts: BootstrapOptions = {}): NodeSDK | null {
 
   sdk = new NodeSDK({
     resource,
-    spanProcessor: new BatchSpanProcessor(exporter),
+    spanProcessors: [new BatchSpanProcessor(exporter)],
   });
   sdk.start();
   return sdk;
