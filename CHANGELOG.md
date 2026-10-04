@@ -4,6 +4,21 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-10-04
+
+### Docs — Streamable HTTP follow-up roadmap (all Proposed)
+- **ADR-024** Resumable streams: per-stream SSE event IDs, `EventStore`
+  (memory / Redis), `Last-Event-ID` replay with explicit `mavio/replay_gap`.
+- **ADR-025** Session as operational unit: `SessionRecord`, optional
+  per-session limits, loop guard, `sessionId` threaded into audit + trace.
+- **ADR-026** Transport bridge: stdio / SSE upstreams exposed as Streamable
+  HTTP, stdio process lifecycle, `mavio bridge` CLI.
+- **ADR-027** Session continuity across replicas: shared `SessionStore`,
+  node-local streams, no sticky load balancing required.
+- **ADR-028** Resource subscription fan-out: gateway-owned deduped
+  subscriptions on the ADR-022 bus, polling shim for non-MCP upstreams.
+- ADR index now lists ADR-023 through ADR-028.
+
 ### Security — P0 hardening on the approval workflow
 - **Deferred upstream probe.** Import submit endpoints no longer connect to
   the upstream. `loadOpenApi` HTTP fetch, `importPostgres` DB connect,
