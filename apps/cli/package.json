@@ -20,7 +20,7 @@
     "@mavio/registry": "workspace:*",
     "commander": "^12.1.0",
     "kleur": "^4.1.5",
-    "undici": "^6.19.8",
+    "undici": "^6.28.1",
     "yaml": "^2.5.0"
   },
   "devDependencies": {

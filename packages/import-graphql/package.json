@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@mavio/core": "workspace:*",
-    "undici": "^6.19.8"
+    "undici": "^6.28.1"
   },
   "devDependencies": {
     "rimraf": "^5.0.5",
