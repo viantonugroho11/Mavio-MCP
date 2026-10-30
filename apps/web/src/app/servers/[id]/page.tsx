@@ -21,12 +21,20 @@ export default async function ServerInspector({
 
       <div className="flex items-baseline justify-between mt-4">
         <h1 className="font-display text-4xl italic">{server.name}</h1>
-        <Link
-          href={`/servers/${encodeURIComponent(server.id)}/history`}
-          className="text-xs font-mono uppercase tracking-widest text-accent hover:underline"
-        >
-          History →
-        </Link>
+        <div className="flex gap-4">
+          <Link
+            href={`/servers/${encodeURIComponent(server.id)}/traces`}
+            className="text-xs font-mono uppercase tracking-widest text-muted hover:text-ink"
+          >
+            Traces
+          </Link>
+          <Link
+            href={`/servers/${encodeURIComponent(server.id)}/history`}
+            className="text-xs font-mono uppercase tracking-widest text-accent hover:underline"
+          >
+            History →
+          </Link>
+        </div>
       </div>
 
       <div className="mt-2 font-mono text-xs text-muted space-x-2">

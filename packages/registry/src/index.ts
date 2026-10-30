@@ -39,6 +39,14 @@ export {
   type McpTarget,
   type EventAuth,
 } from "./event-route-repo.js";
+export {
+  TraceRepository,
+  type TraceInput,
+  type TraceRecord,
+  type TraceFilter,
+  type FailStage,
+  type HopRecord,
+} from "./trace-repo.js";
 
 export interface RegisterInput extends Omit<ServerDescriptor, "version"> {
   version?: string;

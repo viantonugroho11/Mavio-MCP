@@ -2,7 +2,8 @@ import { Inject, Injectable, type OnModuleInit } from "@nestjs/common";
 import type { MCPFrame, Principal, ServerCapabilities, ServerDescriptor, ToolDefinition } from "@mavio/core";
 import { CircuitBreaker, CircuitOpenError, NotFoundError } from "@mavio/core";
 import { Actions, type PolicyEngine } from "@mavio/rbac";
-import { Registry } from "@mavio/registry";
+import { Registry, TraceRepository } from "@mavio/registry";
+import type { FailStage, HopRecord } from "@mavio/registry";
 import { TransportManager, type Session } from "@mavio/transport";
 import {
   CapabilityCache,
@@ -21,6 +22,7 @@ import {
 } from "@mavio/observability";
 import { request } from "undici";
 import { REGISTRY, TRANSPORT_MANAGER } from "./registry.module.js";
+import { TRACE_REPO } from "./trace.module.js";
 import {
   CAPABILITY_CACHE,
   INVALIDATION_BUS,
@@ -42,6 +44,8 @@ import {
 interface DispatchResult {
   result: unknown;
   isError: boolean;
+  backendRequest?: Record<string, unknown>;
+  backendResponse?: Record<string, unknown>;
 }
 
 @Injectable()
@@ -63,6 +67,7 @@ export class RouterService implements OnModuleInit {
     private readonly graphql: GraphqlDispatcher,
     private readonly audit: AuditService,
     @Inject(UPSTREAM_TOKEN_SERVICE) private readonly upstream: UpstreamTokenService,
+    @Inject(TRACE_REPO) private readonly traces: TraceRepository,
   ) {
     this.breaker = new CircuitBreaker(config.router.circuitBreaker ?? {});
     this.limiter = new RateLimiter(redis);
@@ -238,6 +243,8 @@ export class RouterService implements OnModuleInit {
 
     const started = process.hrtime.bigint();
     let outcome: "ok" | "error" | "circuit_open" = "ok";
+    let capturedDispatch: DispatchResult | null = null;
+    let capturedError: Error | null = null;
     try {
       const dispatched = await withSpan(
         `mavio.router.call ${serverId}.${toolName}`,
@@ -255,11 +262,12 @@ export class RouterService implements OnModuleInit {
           },
         },
       );
+      capturedDispatch = dispatched;
       outcome = dispatched.isError ? "error" : "ok";
       if (dispatched.isError) {
         this.metrics.upstreamErrors.inc({ server: serverId, kind: descriptor.transport.type });
       }
-      return {
+      const clientResponse: MCPFrame = {
         jsonrpc: "2.0",
         id: frame.id ?? null,
         result: {
@@ -275,8 +283,10 @@ export class RouterService implements OnModuleInit {
           isError: dispatched.isError,
         },
       };
+      return clientResponse;
     } catch (err) {
       this.metrics.upstreamErrors.inc({ server: serverId, kind: descriptor.transport.type });
+      capturedError = err instanceof Error ? err : new Error(String(err));
       if (err instanceof CircuitOpenError) {
         outcome = "circuit_open";
         return errorFrame(frame.id, -32010, err.message);
@@ -285,7 +295,9 @@ export class RouterService implements OnModuleInit {
       const message = err instanceof Error ? err.message : String(err);
       return errorFrame(frame.id, -32000, `dispatch failed: ${message}`);
     } finally {
-      const seconds = Number(process.hrtime.bigint() - started) / 1e9;
+      const nsBig = process.hrtime.bigint() - started;
+      const seconds = Number(nsBig) / 1e9;
+      const latencyMs = Math.round(seconds * 1000);
       this.metrics.routerRequests.inc({ server: serverId, tool: toolName, outcome });
       this.metrics.routerDuration.observe({ server: serverId, tool: toolName, outcome }, seconds);
       this.metrics.breakerState.set(
@@ -297,9 +309,45 @@ export class RouterService implements OnModuleInit {
         actorType: principal?.type ?? null,
         action: "tool.invoke",
         resource: { server: serverId, tool: toolName },
-        outcome: outcome === "ok" ? "ok" : outcome === "circuit_open" ? "error" : "error",
-        metadata: { outcome, durationMs: Math.round(seconds * 1000) },
+        outcome: outcome === "ok" ? "ok" : "error",
+        metadata: { outcome, durationMs: latencyMs },
       });
+      // Trace capture: always-on for errors, opt-in (trace.enabled) for success.
+      const traceEnabled =
+        (descriptor.metadata as { trace?: { enabled?: boolean } } | undefined)?.trace?.enabled ??
+        false;
+      if (traceEnabled || capturedError || capturedDispatch?.isError) {
+        const failStage: FailStage | null = capturedError
+          ? "backend"
+          : capturedDispatch?.isError
+            ? "transform_response"
+            : null;
+        const hop: HopRecord = {
+          stage: descriptor.transport.type,
+          startedAt: new Date(Date.now() - latencyMs).toISOString(),
+          durationMs: latencyMs,
+          outcome: capturedError || capturedDispatch?.isError ? "error" : "ok",
+        };
+        void this.traces
+          .insert({
+            principalId: principal?.id ?? null,
+            workspaceId: descriptor.workspaceId,
+            serverId,
+            toolName,
+            clientRequest: { args },
+            backendRequest: capturedDispatch?.backendRequest ?? {},
+            backendResponse: capturedDispatch?.backendResponse ?? (capturedError ? { error: capturedError.message } : {}),
+            clientResponse: capturedDispatch
+              ? { result: capturedDispatch.result, isError: capturedDispatch.isError }
+              : { error: capturedError?.message ?? "unknown" },
+            hops: [hop],
+            failStage,
+            schemaDiff: null,
+            nodeId: process.env.MAVIO_NODE_ID ?? null,
+            latencyMs,
+          })
+          .catch(() => undefined);
+      }
     }
   }
 
@@ -365,7 +413,12 @@ export class RouterService implements OnModuleInit {
     });
     const text = await res.body.text();
     const parsed = safeJson(text) ?? text;
-    return { result: parsed, isError: res.statusCode >= 400 };
+    return {
+      result: parsed,
+      isError: res.statusCode >= 400,
+      backendRequest: { method: meta.method, url, headers, body },
+      backendResponse: { status: res.statusCode, headers: Object.fromEntries(Object.entries(res.headers ?? {})), body: parsed },
+    };
   }
 
   private async dispatchNativeMcp(

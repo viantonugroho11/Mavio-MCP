@@ -41,6 +41,8 @@ import { EVENT_CONSUMER_REGISTRY, EventConsumerRegistry } from "./event-consumer
 import { StreamableHttpController } from "./streamable-http.controller.js";
 import { StreamableHttpSessionRegistry } from "./streamable-http.session-registry.js";
 import { InspectorModule } from "./inspector.module.js";
+import { TraceModule } from "./trace.module.js";
+import { TraceController } from "./trace.controller.js";
 
 @Module({
   imports: [
@@ -57,6 +59,7 @@ import { InspectorModule } from "./inspector.module.js";
     ExternalRegistryModule,
     UpstreamAuthModule,
     InspectorModule,
+    TraceModule,
   ],
   controllers: [
     RouterController,
@@ -77,6 +80,7 @@ import { InspectorModule } from "./inspector.module.js";
     UpstreamAdminController,
     VaultAdminController,
     EventsController,
+    TraceController,
   ],
   providers: [
     RouterService,

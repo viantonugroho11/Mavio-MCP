@@ -301,6 +301,71 @@ export async function logout(): Promise<void> {
   await fetch(`${API_URL}/auth/logout`, { method: "POST", credentials: "include" });
 }
 
+export interface HopRecord {
+  stage: string;
+  startedAt: string;
+  durationMs: number;
+  outcome: "ok" | "error";
+}
+
+export interface TraceRecord {
+  id: string;
+  timestamp: string;
+  principalId: string | null;
+  workspaceId: string;
+  serverId: string;
+  toolName: string;
+  clientRequest: Record<string, unknown>;
+  backendRequest: Record<string, unknown>;
+  backendResponse: Record<string, unknown>;
+  clientResponse: Record<string, unknown>;
+  hops: HopRecord[];
+  failStage: string | null;
+  schemaDiff: Record<string, unknown> | null;
+  nodeId: string | null;
+  latencyMs: number;
+}
+
+export type TraceFailStage = "transform_request" | "backend" | "transform_response" | "schema_validate" | "any";
+
+export async function listTraces(opts: {
+  server?: string;
+  tool?: string;
+  failStage?: TraceFailStage;
+  from?: string;
+  to?: string;
+  limit?: number;
+} = {}): Promise<TraceRecord[]> {
+  const url = new URL(`${API_URL}/api/traces`);
+  if (opts.server) url.searchParams.set("server", opts.server);
+  if (opts.tool) url.searchParams.set("tool", opts.tool);
+  if (opts.failStage) url.searchParams.set("failStage", opts.failStage);
+  if (opts.from) url.searchParams.set("from", opts.from);
+  if (opts.to) url.searchParams.set("to", opts.to);
+  if (opts.limit) url.searchParams.set("limit", String(opts.limit));
+  const res = await fetch(url, { headers: authHeaders(), cache: "no-store" });
+  if (!res.ok) throw new Error(`traces ${res.status}`);
+  return res.json();
+}
+
+export async function getTrace(id: string): Promise<TraceRecord> {
+  const res = await fetch(`${API_URL}/api/traces/${encodeURIComponent(id)}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`trace ${res.status}`);
+  return res.json();
+}
+
+export async function replayTrace(id: string): Promise<{ result: unknown }> {
+  const res = await fetch(`${API_URL}/api/traces/${encodeURIComponent(id)}/replay`, {
+    method: "POST",
+    headers: { ...authHeaders(), "content-type": "application/json" },
+  });
+  if (!res.ok) throw new Error(`replay ${res.status}`);
+  return res.json();
+}
+
 export async function deleteServer(id: string): Promise<void> {
   const res = await fetch(`${API_URL}/api/servers/${id}`, {
     method: "DELETE",

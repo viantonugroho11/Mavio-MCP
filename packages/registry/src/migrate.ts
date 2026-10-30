@@ -269,6 +269,38 @@ async function main(): Promise<void> {
       ADD COLUMN IF NOT EXISTS schema_json jsonb;
   `.execute(db);
 
+  // Trace Inspector (ADR-020): opt-in invocation tracing.
+  await sql`
+    CREATE TABLE IF NOT EXISTS invocation_traces (
+      id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      timestamp        timestamptz NOT NULL DEFAULT now(),
+      principal_id     text,
+      workspace_id     text NOT NULL,
+      server_id        text NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+      tool_name        text NOT NULL,
+      client_request   jsonb NOT NULL,
+      backend_request  jsonb NOT NULL,
+      backend_response jsonb NOT NULL,
+      client_response  jsonb NOT NULL,
+      hops             jsonb NOT NULL DEFAULT '[]'::jsonb,
+      fail_stage       text,
+      schema_diff      jsonb,
+      node_id          text,
+      latency_ms       integer NOT NULL
+    );
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS invocation_traces_server_tool_idx
+      ON invocation_traces (server_id, tool_name, timestamp DESC);
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS invocation_traces_fail_stage_idx
+      ON invocation_traces (fail_stage, timestamp DESC)
+      WHERE fail_stage IS NOT NULL;
+  `.execute(db);
+
   await db.destroy();
   console.log("migrations applied");
 }

@@ -142,6 +142,24 @@ export interface EventRoutesTable {
   updated_at: Generated<Date>;
 }
 
+export interface InvocationTracesTable {
+  id: Generated<string>;
+  timestamp: Generated<Date>;
+  principal_id: string | null;
+  workspace_id: string;
+  server_id: string;
+  tool_name: string;
+  client_request: unknown;
+  backend_request: unknown;
+  backend_response: unknown;
+  client_response: unknown;
+  hops: unknown;
+  fail_stage: string | null;
+  schema_diff: unknown | null;
+  node_id: string | null;
+  latency_ms: number;
+}
+
 export interface Database {
   servers: ServersTable;
   capability_snapshots: CapabilitySnapshotsTable;
@@ -154,4 +172,5 @@ export interface Database {
   audit_logs: AuditLogsTable;
   principal_upstream_credentials: PrincipalUpstreamCredentialsTable;
   event_routes: EventRoutesTable;
+  invocation_traces: InvocationTracesTable;
 }
