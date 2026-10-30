@@ -126,6 +126,9 @@ importers:
       '@mavio/import-sql':
         specifier: workspace:*
         version: link:../../packages/import-sql
+      '@mavio/inspector':
+        specifier: workspace:*
+        version: link:../../packages/inspector
       '@mavio/marketplace':
         specifier: workspace:*
         version: link:../../packages/marketplace
@@ -171,6 +174,9 @@ importers:
       cookie:
         specifier: ^0.6.0
         version: 0.6.0
+      jose:
+        specifier: ^4.15.9
+        version: 4.15.9
       kysely:
         specifier: ^0.28.17
         version: 0.28.17
@@ -380,6 +386,25 @@ importers:
       typescript:
         specifier: ^5.5.4
         version: 5.9.3
+
+  packages/inspector:
+    dependencies:
+      '@mavio/core':
+        specifier: workspace:*
+        version: link:../core
+      '@mavio/registry':
+        specifier: workspace:*
+        version: link:../registry
+    devDependencies:
+      rimraf:
+        specifier: ^5.0.5
+        version: 5.0.10
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.6
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@20.19.43)(jiti@1.21.7)(yaml@2.9.0)
 
   packages/marketplace:
     dependencies:

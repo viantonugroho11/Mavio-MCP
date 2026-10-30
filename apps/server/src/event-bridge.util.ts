@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Request } from "express";
+import { createRemoteJWKSet, jwtVerify } from "jose";
+import { Issuer } from "openid-client";
 import type { EventAuth } from "@mavio/registry";
 
 export interface VerifyResult {
@@ -7,29 +9,73 @@ export interface VerifyResult {
   reason?: string;
 }
 
+// Per-issuer JWKS set cache — keyed by jwks_uri, valid for 1h.
+const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
+const issuerDiscoveryCache = new Map<string, { jwksUri: string; fetchedAt: number }>();
+const DISCOVERY_TTL_MS = 3_600_000;
+
+async function getJwksSet(issuerUrl: string): Promise<ReturnType<typeof createRemoteJWKSet>> {
+  const cached = issuerDiscoveryCache.get(issuerUrl);
+  let jwksUri: string;
+
+  if (cached && Date.now() - cached.fetchedAt < DISCOVERY_TTL_MS) {
+    jwksUri = cached.jwksUri;
+  } else {
+    const issuer = await Issuer.discover(issuerUrl);
+    jwksUri = issuer.metadata.jwks_uri as string;
+    issuerDiscoveryCache.set(issuerUrl, { jwksUri, fetchedAt: Date.now() });
+  }
+
+  const existing = jwksCache.get(jwksUri);
+  if (existing) return existing;
+  const jwks = createRemoteJWKSet(new URL(jwksUri));
+  jwksCache.set(jwksUri, jwks);
+  return jwks;
+}
+
+async function verifyOidcBearer(
+  req: Request,
+  auth: EventAuth,
+): Promise<VerifyResult> {
+  const issuerUrl = auth.issuerUrl;
+  if (!issuerUrl) return { ok: false, reason: "oidc auth missing issuerUrl" };
+
+  const header = req.header("authorization") ?? "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match?.[1]) return { ok: false, reason: "missing bearer token" };
+  const token = match[1];
+
+  try {
+    const jwks = await getJwksSet(issuerUrl);
+    await jwtVerify(token, jwks, {
+      issuer: issuerUrl,
+      audience: auth.audience,
+      algorithms: ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"],
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : "oidc verify error" };
+  }
+}
+
 /**
- * Verify inbound webhook authenticity. M2 supports HMAC-SHA256 only; mTLS
- * and OIDC are validated by upstream layers or deferred to M4.
+ * Verify inbound webhook authenticity. Supports HMAC-SHA256, mTLS (proxy-
+ * validated), and OIDC bearer JWT (RS256/ES256 against issuer JWKS).
  *
- * Header contract: `x-mavio-signature: sha256=<hex>` computed over the raw
- * request body using the shared secret resolved from `auth.secretRef` (env
- * var name in M2 — Vault-backed lookup lands in M4).
+ * Header contract for HMAC: `x-mavio-signature: sha256=<hex>` computed over
+ * the raw request body using the shared secret from `auth.secretRef`.
  */
-export function verifyIngressAuth(
+export async function verifyIngressAuth(
   req: Request,
   auth: EventAuth,
   rawBody: Buffer,
-): VerifyResult {
+): Promise<VerifyResult> {
   if (auth.type === "none") return { ok: true };
   if (auth.type === "mtls") {
-    // The mTLS peer cert is validated by the terminating proxy or by
-    // federated-auth.ts before the route handler runs. Trust the transport.
+    // Peer cert validated by terminating proxy or federated-auth.ts.
     return { ok: true };
   }
-  if (auth.type === "oidc") {
-    // OIDC bearer validation lands in M4 alongside per-route audience checks.
-    return { ok: false, reason: "oidc ingress not implemented in M2" };
-  }
+  if (auth.type === "oidc") return verifyOidcBearer(req, auth);
   if (auth.type !== "hmac") return { ok: false, reason: `unknown auth type: ${String(auth.type)}` };
 
   const ref = auth.secretRef;

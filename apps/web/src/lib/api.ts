@@ -308,3 +308,58 @@ export async function deleteServer(id: string): Promise<void> {
   });
   if (!res.ok) throw new Error(`delete ${res.status}`);
 }
+
+export interface ResourceInfo {
+  uri: string;
+  name?: string;
+  description?: string;
+  mimeType?: string;
+}
+
+export interface PromptArg {
+  name: string;
+  description?: string;
+  required?: boolean;
+}
+
+export interface PromptInfo {
+  name: string;
+  description?: string;
+  arguments?: PromptArg[];
+}
+
+export interface TransportMeta {
+  kind: string;
+  endpoint?: string;
+  command?: string;
+  tls: boolean;
+}
+
+export interface ServerDescription {
+  server: ServerRow;
+  serverInfo: { name?: string; version?: string } | null;
+  transportMeta: TransportMeta;
+  tools: ToolInfo[];
+  resources: ResourceInfo[];
+  prompts: PromptInfo[];
+  snapshotVersion: string | null;
+  snapshotTakenAt: string | null;
+}
+
+export async function describeServer(serverId: string): Promise<ServerDescription> {
+  const res = await fetch(`${API_URL}/api/inspector/${encodeURIComponent(serverId)}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`inspector ${res.status}`);
+  return res.json();
+}
+
+export async function explainTool(serverId: string, toolName: string): Promise<ToolInfo & { serverId: string }> {
+  const res = await fetch(
+    `${API_URL}/api/inspector/${encodeURIComponent(serverId)}/tools/${encodeURIComponent(toolName)}`,
+    { headers: authHeaders(), cache: "no-store" },
+  );
+  if (!res.ok) throw new Error(`explain tool ${res.status}`);
+  return res.json();
+}

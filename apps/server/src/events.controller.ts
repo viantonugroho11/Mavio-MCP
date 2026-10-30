@@ -152,7 +152,7 @@ export class EventsController {
     const rawBody =
       (req as Request & { rawBody?: Buffer }).rawBody ??
       Buffer.from(typeof body === "string" ? body : JSON.stringify(body ?? {}));
-    const verdict = verifyIngressAuth(req, route.auth, rawBody);
+    const verdict = await verifyIngressAuth(req, route.auth, rawBody);
 
     const result = await this.dispatcher.dispatch({
       routeId: id,

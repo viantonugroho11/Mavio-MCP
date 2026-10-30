@@ -40,6 +40,7 @@ import { EventBridgeSupervisor } from "./event-bridge.supervisor.js";
 import { EVENT_CONSUMER_REGISTRY, EventConsumerRegistry } from "./event-consumer.js";
 import { StreamableHttpController } from "./streamable-http.controller.js";
 import { StreamableHttpSessionRegistry } from "./streamable-http.session-registry.js";
+import { InspectorModule } from "./inspector.module.js";
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { StreamableHttpSessionRegistry } from "./streamable-http.session-registr
     AuditModule,
     ExternalRegistryModule,
     UpstreamAuthModule,
+    InspectorModule,
   ],
   controllers: [
     RouterController,
