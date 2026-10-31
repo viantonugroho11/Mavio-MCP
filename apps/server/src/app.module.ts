@@ -42,6 +42,8 @@ import { EventBridgeSupervisor } from "./event-bridge.supervisor.js";
 import { EVENT_CONSUMER_REGISTRY, EventConsumerRegistry } from "./event-consumer.js";
 import { StreamableHttpController } from "./streamable-http.controller.js";
 import { StreamableHttpSessionRegistry } from "./streamable-http.session-registry.js";
+import { McpSessionStore } from "./mcp-session.store.js";
+import { McpSessionsController } from "./mcp-sessions.controller.js";
 import { InspectorModule } from "./inspector.module.js";
 import { TraceModule } from "./trace.module.js";
 import { TraceController } from "./trace.controller.js";
@@ -97,6 +99,7 @@ class AppBootstrapService implements OnModuleInit {
     EventsController,
     TraceController,
     LocalAuthController,
+    McpSessionsController,
   ],
   providers: [
     RouterService,
@@ -115,6 +118,7 @@ class AppBootstrapService implements OnModuleInit {
       useFactory: (): EventConsumerRegistry => new EventConsumerRegistry(),
     },
     AppBootstrapService,
+    McpSessionStore,
   ],
 })
 export class AppModule {}

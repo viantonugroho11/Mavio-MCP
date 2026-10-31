@@ -1,6 +1,6 @@
 # ADR-025: Session as the operational unit (quota, policy, cost, trace)
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-04
 **Deciders:** Platform Architecture, Security, DevEx
 **Depends on:** ADR-023 · **Relates:** ADR-016, ADR-020, ADR-024

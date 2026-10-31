@@ -1,5 +1,6 @@
 import { Inject, Injectable, type OnModuleInit } from "@nestjs/common";
 import type { MCPFrame, Principal, ServerCapabilities, ServerDescriptor, ToolDefinition } from "@mavio/core";
+import { McpSessionStore } from "./mcp-session.store.js";
 import { CircuitBreaker, CircuitOpenError, NotFoundError } from "@mavio/core";
 import { Actions, type PolicyEngine } from "@mavio/rbac";
 import { Registry, TraceRepository } from "@mavio/registry";
@@ -68,6 +69,7 @@ export class RouterService implements OnModuleInit {
     private readonly audit: AuditService,
     @Inject(UPSTREAM_TOKEN_SERVICE) private readonly upstream: UpstreamTokenService,
     @Inject(TRACE_REPO) private readonly traces: TraceRepository,
+    private readonly mcpSessions: McpSessionStore,
   ) {
     this.breaker = new CircuitBreaker(config.router.circuitBreaker ?? {});
     this.limiter = new RateLimiter(redis);
@@ -123,8 +125,10 @@ export class RouterService implements OnModuleInit {
     return fresh;
   }
 
-  async handle(frame: MCPFrame, principal?: Principal): Promise<MCPFrame> {
+  async handle(frame: MCPFrame, principal?: Principal, sessionId?: string): Promise<MCPFrame> {
     if (frame.method === "initialize") {
+      const clientInfo = (frame.params as { clientInfo?: Record<string, unknown> } | undefined)?.clientInfo;
+      if (sessionId && clientInfo) this.mcpSessions.setClientInfo(sessionId, clientInfo);
       return {
         jsonrpc: "2.0",
         id: frame.id ?? null,
@@ -144,7 +148,7 @@ export class RouterService implements OnModuleInit {
     if (frame.method === "tools/call") {
       const params = (frame.params ?? {}) as { name?: string; arguments?: Record<string, unknown> };
       if (!params.name) return errorFrame(frame.id, -32602, "missing tool name");
-      return this.callTool(frame, params.name, params.arguments ?? {}, principal);
+      return this.callTool(frame, params.name, params.arguments ?? {}, principal, sessionId);
     }
 
     return errorFrame(frame.id, -32601, `method not supported: ${frame.method ?? "?"}`);
@@ -154,12 +158,14 @@ export class RouterService implements OnModuleInit {
     fqName: string,
     args: Record<string, unknown>,
     principal?: Principal,
+    sessionId?: string,
   ): Promise<MCPFrame> {
     return this.callTool(
       { jsonrpc: "2.0", id: Date.now(), method: "tools/call", params: { name: fqName, arguments: args } },
       fqName,
       args,
       principal,
+      sessionId,
     );
   }
 
@@ -180,6 +186,7 @@ export class RouterService implements OnModuleInit {
     fqName: string,
     args: Record<string, unknown>,
     principal?: Principal,
+    sessionId?: string,
   ): Promise<MCPFrame> {
     const dot = fqName.indexOf(".");
     if (dot < 0) return errorFrame(frame.id, -32602, "tool name must be namespaced: serverId.toolName");
@@ -222,6 +229,23 @@ export class RouterService implements OnModuleInit {
       if (!result.allowed) {
         this.metrics.rateLimitDenied.inc({ server: serverId, scope });
         return errorFrame(frame.id, -32011, `server rate limit exceeded (resetAt=${result.resetAt})`);
+      }
+    }
+
+    // ADR-025: session-level pre-call check (limits + loop guard)
+    if (sessionId) {
+      const argsJson = JSON.stringify(args);
+      const check = this.mcpSessions.preCall(sessionId, fqName, argsJson);
+      if (!check.allowed) {
+        this.audit.log({
+          actorId: principal?.id ?? null,
+          actorType: principal?.type ?? null,
+          action: "tool.invoke",
+          resource: { server: serverId, tool: toolName },
+          outcome: "error",
+          metadata: { outcome: "session_limit", sessionId, reason: check.message },
+        });
+        return errorFrame(frame.id, check.code, check.message);
       }
     }
 
@@ -304,13 +328,17 @@ export class RouterService implements OnModuleInit {
         { server: serverId },
         BREAKER_STATE_VALUE[this.breaker.snapshot(serverId)],
       );
+      if (sessionId) {
+        const responseJson = capturedDispatch ? JSON.stringify(capturedDispatch.result) : "";
+        this.mcpSessions.recordOutcome(sessionId, outcome !== "ok", responseJson.length);
+      }
       this.audit.log({
         actorId: principal?.id ?? null,
         actorType: principal?.type ?? null,
         action: "tool.invoke",
         resource: { server: serverId, tool: toolName },
         outcome: outcome === "ok" ? "ok" : "error",
-        metadata: { outcome, durationMs: latencyMs },
+        metadata: { outcome, durationMs: latencyMs, sessionId: sessionId ?? null },
       });
       // Trace capture: always-on for errors, opt-in (trace.enabled) for success.
       const traceEnabled =
@@ -334,7 +362,7 @@ export class RouterService implements OnModuleInit {
             workspaceId: descriptor.workspaceId,
             serverId,
             toolName,
-            clientRequest: { args },
+            clientRequest: { args, sessionId: sessionId ?? null },
             backendRequest: capturedDispatch?.backendRequest ?? {},
             backendResponse: capturedDispatch?.backendResponse ?? (capturedError ? { error: capturedError.message } : {}),
             clientResponse: capturedDispatch

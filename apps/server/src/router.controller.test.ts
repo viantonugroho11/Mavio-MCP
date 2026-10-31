@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { RouterController } from "./router.controller.js";
 import { StreamableHttpSessionRegistry } from "./streamable-http.session-registry.js";
 import { SseSessionRegistry } from "./sse.registry.js";
+import { McpSessionStore } from "./mcp-session.store.js";
 
 function mkReq(headers: Record<string, string> = {}): Request {
   return { headers } as any;
@@ -42,7 +43,7 @@ describe("RouterController Streamable HTTP", () => {
   beforeEach(() => {
     streamableReg = new StreamableHttpSessionRegistry();
     sseReg = new SseSessionRegistry();
-    controller = new RouterController(routerStub, rbacStub, sseReg, streamableReg);
+    controller = new RouterController(routerStub, rbacStub, sseReg, streamableReg, new McpSessionStore());
     routerStub.handle.mockClear();
   });
 

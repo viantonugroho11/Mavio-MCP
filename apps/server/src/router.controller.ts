@@ -8,6 +8,7 @@ import { RBAC_REPO } from "./rbac.module.js";
 import { resolvePrincipalFromRequest } from "./principal-resolver.js";
 import { SseSessionRegistry } from "./sse.registry.js";
 import { StreamableHttpSessionRegistry } from "./streamable-http.session-registry.js";
+import { McpSessionStore } from "./mcp-session.store.js";
 
 @Controller("mcp")
 @UseInterceptors(RateLimitInterceptor)
@@ -17,6 +18,7 @@ export class RouterController {
     @Inject(RBAC_REPO) private readonly rbac: RbacRepository,
     private readonly sseRegistry: SseSessionRegistry,
     private readonly streamable: StreamableHttpSessionRegistry,
+    private readonly mcpSessions: McpSessionStore,
   ) {}
 
   @Post()
@@ -37,7 +39,7 @@ export class RouterController {
         return;
       }
       this.streamable.touch(streamableSid);
-      const response = await this.router.handle(frame, principal);
+      const response = await this.router.handle(frame, principal, streamableSid);
       if (accept.includes("text/event-stream")) {
         res.setHeader("content-type", "text/event-stream");
         res.setHeader("cache-control", "no-cache, no-transform");
@@ -55,8 +57,9 @@ export class RouterController {
 
     // Streamable HTTP: initialize (creates session)
     if (!sid && frame.method === "initialize") {
-      const response = await this.router.handle(frame, principal);
       const newSid = this.streamable.create();
+      this.mcpSessions.register(newSid, "streamable-http", principal?.id ?? null);
+      const response = await this.router.handle(frame, principal, newSid);
       res.setHeader("mcp-session-id", newSid);
       return response;
     }
