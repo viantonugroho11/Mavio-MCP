@@ -43,6 +43,8 @@ import { StreamableHttpSessionRegistry } from "./streamable-http.session-registr
 import { InspectorModule } from "./inspector.module.js";
 import { TraceModule } from "./trace.module.js";
 import { TraceController } from "./trace.controller.js";
+import { LocalAuthModule } from "./local-auth.module.js";
+import { LocalAuthController } from "./local-auth.controller.js";
 
 @Module({
   imports: [
@@ -60,6 +62,7 @@ import { TraceController } from "./trace.controller.js";
     UpstreamAuthModule,
     InspectorModule,
     TraceModule,
+    LocalAuthModule,
   ],
   controllers: [
     RouterController,
@@ -81,6 +84,7 @@ import { TraceController } from "./trace.controller.js";
     VaultAdminController,
     EventsController,
     TraceController,
+    LocalAuthController,
   ],
   providers: [
     RouterService,

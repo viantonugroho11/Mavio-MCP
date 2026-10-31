@@ -40,6 +40,11 @@ export {
   type EventAuth,
 } from "./event-route-repo.js";
 export {
+  LocalUserRepository,
+  type LocalUser,
+  type CreateLocalUserInput,
+} from "./local-user-repo.js";
+export {
   TraceRepository,
   type TraceInput,
   type TraceRecord,

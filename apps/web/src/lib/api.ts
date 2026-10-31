@@ -274,6 +274,7 @@ export interface AuthProvider {
   id: string;
   displayName: string;
   loginUrl: string;
+  type?: "oidc" | "local";
 }
 
 export interface Me {

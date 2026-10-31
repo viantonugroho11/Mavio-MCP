@@ -160,8 +160,21 @@ export interface InvocationTracesTable {
   latency_ms: number;
 }
 
+export interface LocalUsersTable {
+  id: Generated<string>;
+  username: string;
+  email: string | null;
+  display_name: string;
+  password_hash: string;
+  workspace_id: Generated<string>;
+  enabled: Generated<boolean>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface Database {
   servers: ServersTable;
+  local_users: LocalUsersTable;
   capability_snapshots: CapabilitySnapshotsTable;
   principals: PrincipalsTable;
   role_assignments: RoleAssignmentsTable;

@@ -10,10 +10,11 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { Actions } from "@mavio/rbac";
-import { OidcProviderRepository, type OidcProvider } from "@mavio/registry";
+import { OidcProviderRepository, type OidcProvider, type LocalUserRepository } from "@mavio/registry";
 import { ApiKeyGuard } from "./auth.guard.js";
 import { RbacGuard, RequirePermission } from "./rbac.guard.js";
 import { OIDC_PROVIDER_REPO } from "./auth.module.js";
+import { LOCAL_USER_REPO } from "./local-auth.module.js";
 
 interface UpsertProviderBody {
   displayName: string;
@@ -29,21 +30,30 @@ interface PublicProvider {
   id: string;
   displayName: string;
   loginUrl: string;
+  type: "oidc" | "local";
 }
 
 function toPublic(p: OidcProvider): PublicProvider {
-  return { id: p.id, displayName: p.displayName, loginUrl: `/auth/${p.id}/login` };
+  return { id: p.id, displayName: p.displayName, loginUrl: `/auth/${p.id}/login`, type: "oidc" };
 }
 
 @Controller()
 export class AuthController {
-  constructor(@Inject(OIDC_PROVIDER_REPO) private readonly repo: OidcProviderRepository) {}
+  constructor(
+    @Inject(OIDC_PROVIDER_REPO) private readonly repo: OidcProviderRepository,
+    @Inject(LOCAL_USER_REPO) private readonly localUsers: LocalUserRepository,
+  ) {}
 
   // Public: enabled providers only, no secrets.
   @Get("auth/providers")
   async listPublic(): Promise<PublicProvider[]> {
     const providers = await this.repo.list(false);
-    return providers.map(toPublic);
+    const result: PublicProvider[] = providers.map(toPublic);
+    const localCount = await this.localUsers.count();
+    if (localCount > 0) {
+      result.push({ id: "local", displayName: "Local account", loginUrl: "/auth/local/login", type: "local" });
+    }
+    return result;
   }
 
   // Admin CRUD.

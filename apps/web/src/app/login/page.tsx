@@ -1,4 +1,5 @@
 import { API_URL, listAuthProviders } from "@/lib/api";
+import { LocalLoginForm } from "@/components/local-login-form";
 
 export const dynamic = "force-dynamic";
 
@@ -41,13 +42,25 @@ export default async function LoginPage({
 
           {providers.length === 0 && !error && (
             <div className="rounded-lg bg-ground border border-rule px-4 py-4 text-sm text-muted">
-              No OIDC providers configured. An admin can add one at{" "}
-              <code className="text-ink font-mono text-xs">PUT /api/auth/providers/:id</code>.
+              No auth providers configured. An admin can add OIDC at{" "}
+              <code className="text-ink font-mono text-xs">PUT /api/auth/providers/:id</code>{" "}
+              or local users at{" "}
+              <code className="text-ink font-mono text-xs">POST /api/auth/local/users</code>.
             </div>
           )}
 
           <ul className="flex flex-col gap-2">
             {providers.map((p) => {
+              if (p.type === "local") {
+                return (
+                  <li key={p.id}>
+                    <div className="px-4 py-4 rounded-lg border border-rule bg-ground">
+                      <p className="text-sm font-medium text-ink mb-1">{p.displayName}</p>
+                      <LocalLoginForm returnTo={returnTo} />
+                    </div>
+                  </li>
+                );
+              }
               const href = `${API_URL}${p.loginUrl}?return_to=${encodeURIComponent(returnTo)}`;
               return (
                 <li key={p.id}>
