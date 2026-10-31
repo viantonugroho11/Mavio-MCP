@@ -1,8 +1,9 @@
 import { Inject, Module, OnModuleInit } from "@nestjs/common";
 import type { MavioMetrics } from "@mavio/observability";
+import type { Redis } from "@mavio/cache";
 import { METRICS } from "./observability.module.js";
 import { AppConfigModule } from "./config.module.js";
-import { CacheModule } from "./cache.module.js";
+import { CacheModule, REDIS, REDIS_PUSH_SUB } from "./cache.module.js";
 import { RegistryModule } from "./registry.module.js";
 import { RbacModule } from "./rbac.module.js";
 import { AuthModule } from "./auth.module.js";
@@ -42,6 +43,7 @@ import { EventBridgeSupervisor } from "./event-bridge.supervisor.js";
 import { EVENT_CONSUMER_REGISTRY, EventConsumerRegistry } from "./event-consumer.js";
 import { StreamableHttpController } from "./streamable-http.controller.js";
 import { StreamableHttpSessionRegistry } from "./streamable-http.session-registry.js";
+import { RedisStreamableSessionStore } from "./redis-streamable-session-store.js";
 import { McpSessionStore } from "./mcp-session.store.js";
 import { McpSessionsController } from "./mcp-sessions.controller.js";
 import { InspectorModule } from "./inspector.module.js";
@@ -54,9 +56,12 @@ class AppBootstrapService implements OnModuleInit {
   constructor(
     private readonly streamableRegistry: StreamableHttpSessionRegistry,
     @Inject(METRICS) private readonly metrics: MavioMetrics,
+    @Inject(REDIS) private readonly redis: Redis,
+    @Inject(REDIS_PUSH_SUB) private readonly pushSub: Redis,
   ) {}
   onModuleInit(): void {
     this.streamableRegistry.setMetrics(this.metrics);
+    this.streamableRegistry.setPubSub(this.redis, this.pushSub);
   }
 }
 
@@ -110,7 +115,12 @@ class AppBootstrapService implements OnModuleInit {
     GraphqlDispatcher,
     HealthProber,
     SseSessionRegistry,
-    StreamableHttpSessionRegistry,
+    {
+      provide: StreamableHttpSessionRegistry,
+      inject: [REDIS],
+      useFactory: (redis: Redis): StreamableHttpSessionRegistry =>
+        new StreamableHttpSessionRegistry(undefined, new RedisStreamableSessionStore(redis)),
+    },
     EventDispatcherService,
     EventBridgeSupervisor,
     {

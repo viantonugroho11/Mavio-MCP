@@ -1,17 +1,14 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import type { Response } from "express";
-import { randomUUID } from "node:crypto";
 import type { MCPFrame } from "@mavio/core";
-import { type EventStore, type StoredEvent, GAP_EVENT, MemoryEventStore, parseEventId } from "@mavio/transport";
+import { type EventStore, type StoredEvent, GAP_EVENT, MemoryEventStore, MemoryStreamableSessionStore, type StreamableSessionStore, parseEventId } from "@mavio/transport";
 import type { MavioMetrics } from "@mavio/observability";
+import type { Redis } from "@mavio/cache";
 
-export const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 export const BUFFER_LIMIT = 100;
+const PUSH_CHANNEL_PREFIX = "mavio:push:";
 
-interface Session {
-  sessionId: string;
-  createdAt: number;
-  lastSeenAt: number;
+interface LocalSessionState {
   pushStream: Response | null;
   pendingNotifications: Array<{ chunk: string; eventId: string }>;
 }
@@ -22,71 +19,82 @@ function sseChunk(eventId: string, data: string): string {
 
 @Injectable()
 export class StreamableHttpSessionRegistry implements OnModuleInit, OnModuleDestroy {
-  private readonly sessions = new Map<string, Session>();
+  private readonly localState = new Map<string, LocalSessionState>();
   private readonly store: EventStore;
+  private readonly sessionStore: StreamableSessionStore;
   private reaper: NodeJS.Timeout | null = null;
 
-  /** Push-stream stream ID — fixed per session for notifications. */
-  private static readonly PUSH_STREAM = "push";
+  /** Cross-replica pub/sub (ADR-027) — optional, only in Redis mode. */
+  private publisher?: Redis;
+  private pushSubscriber?: Redis;
 
   private metrics?: MavioMetrics;
 
-  constructor(store?: EventStore) {
+  /** Fixed stream ID for push notifications per session. */
+  private static readonly PUSH_STREAM = "push";
+
+  constructor(store?: EventStore, sessionStore?: StreamableSessionStore) {
     this.store = store ?? new MemoryEventStore();
+    this.sessionStore = sessionStore ?? new MemoryStreamableSessionStore();
   }
 
-  /** Called by ObservabilityModule after construction to wire metrics. */
+  /** Called by AppBootstrapService after construction to wire metrics. */
   setMetrics(m: MavioMetrics): void {
     this.metrics = m;
   }
 
-  create(): string {
-    const sessionId = randomUUID();
-    const now = Date.now();
-    this.sessions.set(sessionId, {
-      sessionId,
-      createdAt: now,
-      lastSeenAt: now,
-      pushStream: null,
-      pendingNotifications: [],
-    });
+  /** Called by AppBootstrapService to wire Redis cross-replica delivery (ADR-027). */
+  setPubSub(publisher: Redis, subscriber: Redis): void {
+    this.publisher = publisher;
+    this.pushSubscriber = subscriber;
+  }
+
+  private getOrCreateLocalState(sessionId: string): LocalSessionState {
+    let local = this.localState.get(sessionId);
+    if (!local) {
+      local = { pushStream: null, pendingNotifications: [] };
+      this.localState.set(sessionId, local);
+    }
+    return local;
+  }
+
+  async create(): Promise<string> {
+    const sessionId = await this.sessionStore.create();
+    this.localState.set(sessionId, { pushStream: null, pendingNotifications: [] });
     return sessionId;
   }
 
-  has(sessionId: string): boolean {
-    return this.sessions.has(sessionId);
+  async has(sessionId: string): Promise<boolean> {
+    return this.sessionStore.has(sessionId);
   }
 
-  touch(sessionId: string): boolean {
-    const s = this.sessions.get(sessionId);
-    if (!s) return false;
-    s.lastSeenAt = Date.now();
-    return true;
+  touch(sessionId: string): void {
+    void this.sessionStore.touch(sessionId).catch(() => undefined);
   }
 
   async attachPushStream(sessionId: string, res: Response, lastEventId?: string): Promise<boolean> {
-    const s = this.sessions.get(sessionId);
-    if (!s) return false;
+    const exists = await this.sessionStore.has(sessionId);
+    if (!exists) return false;
 
-    // Replay from Last-Event-ID if provided (ADR-024)
+    const local = this.getOrCreateLocalState(sessionId);
+
     if (lastEventId) {
       this.metrics?.streamReplayTotal.inc({ session: sessionId });
       const replayed = await this._replay(sessionId, lastEventId, res);
       if (!replayed) return false;
     } else {
-      // Drain pending buffer (no event IDs available — flush as-is)
-      for (const { chunk } of s.pendingNotifications) {
+      for (const { chunk } of local.pendingNotifications) {
         try {
           res.write(chunk);
         } catch {
-          s.pushStream = null;
+          local.pushStream = null;
           return false;
         }
       }
-      s.pendingNotifications = [];
+      local.pendingNotifications = [];
     }
 
-    s.pushStream = res;
+    local.pushStream = res;
     return true;
   }
 
@@ -101,7 +109,6 @@ export class StreamableHttpSessionRegistry implements OnModuleInit, OnModuleDest
     for (const ev of events) {
       if (ev.id === GAP_EVENT.id) {
         this.metrics?.streamReplayGapTotal.inc({ session: sessionId });
-        // Send a gap notification before replaying remaining events
         const gapFrame = {
           jsonrpc: "2.0",
           method: "notifications/message",
@@ -111,52 +118,58 @@ export class StreamableHttpSessionRegistry implements OnModuleInit, OnModuleDest
             data: { code: "mavio/replay_gap", message: "Some events were trimmed; replay is partial." },
           },
         };
-        const gapChunk = `event: message\ndata: ${JSON.stringify(gapFrame)}\n\n`;
-        try { res.write(gapChunk); } catch { return false; }
+        try { res.write(`event: message\ndata: ${JSON.stringify(gapFrame)}\n\n`); } catch { return false; }
         continue;
       }
-      const chunk = sseChunk(ev.id, ev.data === "__oversized__"
-        ? JSON.stringify({ jsonrpc: "2.0", method: "notifications/message", params: { level: "warning", logger: "mavio/event-store", data: { code: "mavio/oversized_event", message: "Event was too large to store; re-issue the request." } } })
-        : ev.data);
+      const chunk = sseChunk(
+        ev.id,
+        ev.data === "__oversized__"
+          ? JSON.stringify({ jsonrpc: "2.0", method: "notifications/message", params: { level: "warning", logger: "mavio/event-store", data: { code: "mavio/oversized_event", message: "Event was too large to store; re-issue the request." } } })
+          : ev.data,
+      );
       try { res.write(chunk); } catch { return false; }
     }
     return true;
   }
 
   detachPushStream(sessionId: string): void {
-    const s = this.sessions.get(sessionId);
-    if (s) s.pushStream = null;
+    const local = this.localState.get(sessionId);
+    if (local) local.pushStream = null;
   }
 
   async pushNotification(sessionId: string, frame: MCPFrame): Promise<boolean> {
-    const s = this.sessions.get(sessionId);
-    if (!s) return false;
-    s.lastSeenAt = Date.now();
+    const exists = await this.sessionStore.has(sessionId);
+    if (!exists) return false;
+    void this.sessionStore.touch(sessionId).catch(() => undefined);
 
     const data = JSON.stringify(frame);
     const eventId = await this.store.append(sessionId, StreamableHttpSessionRegistry.PUSH_STREAM, data);
     const chunk = sseChunk(eventId, data);
 
-    if (s.pushStream) {
+    const local = this.getOrCreateLocalState(sessionId);
+
+    if (local.pushStream) {
       try {
-        s.pushStream.write(chunk);
+        local.pushStream.write(chunk);
         return true;
       } catch {
-        s.pushStream = null;
+        local.pushStream = null;
       }
     }
-    if (s.pendingNotifications.length >= BUFFER_LIMIT) {
-      s.pendingNotifications.shift();
+
+    // No local push stream — try cross-replica delivery (ADR-027)
+    if (this.publisher) {
+      void this.publisher.publish(`${PUSH_CHANNEL_PREFIX}${sessionId}`, chunk).catch(() => undefined);
+      return true;
     }
-    s.pendingNotifications.push({ chunk, eventId });
+
+    if (local.pendingNotifications.length >= BUFFER_LIMIT) {
+      local.pendingNotifications.shift();
+    }
+    local.pendingNotifications.push({ chunk, eventId });
     return true;
   }
 
-  /**
-   * Write a response-stream SSE event with a stable event ID.
-   * Called by RouterController for `POST /mcp` streaming responses.
-   * Returns the assigned event ID.
-   */
   async writeResponseEvent(sessionId: string, streamId: string, data: string, res: Response): Promise<string> {
     const eventId = await this.store.append(sessionId, streamId, data);
     const chunk = sseChunk(eventId, data);
@@ -165,20 +178,26 @@ export class StreamableHttpSessionRegistry implements OnModuleInit, OnModuleDest
   }
 
   delete(sessionId: string): void {
-    const s = this.sessions.get(sessionId);
-    if (s?.pushStream) {
-      try { s.pushStream.end(); } catch { /* ignore */ }
+    const local = this.localState.get(sessionId);
+    if (local?.pushStream) {
+      try { local.pushStream.end(); } catch { /* ignore */ }
     }
-    this.sessions.delete(sessionId);
+    this.localState.delete(sessionId);
+    void this.sessionStore.delete(sessionId).catch(() => undefined);
     void this.store.deleteSession(sessionId).catch(() => undefined);
   }
 
-  reapExpired(now: number = Date.now()): number {
-    let n = 0;
-    for (const [sid, s] of this.sessions) {
-      if (now - s.lastSeenAt > SESSION_TTL_MS) {
-        this.delete(sid);
-        n++;
+  async reapExpired(now: number = Date.now()): Promise<number> {
+    const n = await this.sessionStore.reapExpired(now);
+    // Clean up local state for reaped sessions
+    for (const [sid] of this.localState) {
+      const exists = await this.sessionStore.has(sid);
+      if (!exists) {
+        const local = this.localState.get(sid);
+        if (local?.pushStream) {
+          try { local.pushStream.end(); } catch { /* ignore */ }
+        }
+        this.localState.delete(sid);
       }
     }
     return n;
@@ -189,14 +208,29 @@ export class StreamableHttpSessionRegistry implements OnModuleInit, OnModuleDest
   }
 
   onModuleInit(): void {
+    // Cross-replica push delivery: pattern-subscribe to all push channels
+    if (this.pushSubscriber) {
+      void this.pushSubscriber.psubscribe(`${PUSH_CHANNEL_PREFIX}*`).catch(() => undefined);
+      this.pushSubscriber.on("pmessage", (_pattern: string, channel: string, chunk: string) => {
+        const sessionId = channel.slice(PUSH_CHANNEL_PREFIX.length);
+        const local = this.localState.get(sessionId);
+        if (local?.pushStream) {
+          try { local.pushStream.write(chunk); } catch { local.pushStream = null; }
+        }
+      });
+    }
+
     this.reaper = setInterval(() => {
-      this.reapExpired();
+      void this.reapExpired().catch(() => undefined);
     }, 60 * 60 * 1000);
   }
 
   onModuleDestroy(): void {
     if (this.reaper) clearInterval(this.reaper);
     this.reaper = null;
-    for (const sid of Array.from(this.sessions.keys())) this.delete(sid);
+    if (this.pushSubscriber) {
+      void this.pushSubscriber.punsubscribe(`${PUSH_CHANNEL_PREFIX}*`).catch(() => undefined);
+    }
+    for (const [sid] of this.localState) this.delete(sid);
   }
 }

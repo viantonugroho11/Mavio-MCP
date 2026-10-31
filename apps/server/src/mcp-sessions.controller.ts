@@ -27,13 +27,13 @@ export class McpSessionsController {
 
   /** Force-terminate: close SSE stream + remove from both stores. */
   @Delete(":id")
-  remove(@Param("id") id: string, @Res() res: Response): void {
+  async remove(@Param("id") id: string, @Res() res: Response): Promise<void> {
     const exists = this.store.get(id);
     if (!exists) {
       res.status(404).end();
       return;
     }
-    if (this.streamable.has(id)) {
+    if (await this.streamable.has(id)) {
       this.streamable.delete(id);
     }
     this.store.delete(id);

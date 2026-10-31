@@ -34,7 +34,7 @@ export class RouterController {
 
     // Streamable HTTP: session header present
     if (streamableSid) {
-      if (!this.streamable.has(streamableSid)) {
+      if (!(await this.streamable.has(streamableSid))) {
         res.status(404).end();
         return;
       }
@@ -57,7 +57,7 @@ export class RouterController {
 
     // Streamable HTTP: initialize (creates session)
     if (!sid && frame.method === "initialize") {
-      const newSid = this.streamable.create();
+      const newSid = await this.streamable.create();
       this.mcpSessions.register(newSid, "streamable-http", principal?.id ?? null);
       const response = await this.router.handle(frame, principal, newSid);
       res.setHeader("mcp-session-id", newSid);

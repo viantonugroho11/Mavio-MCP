@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Response } from "express";
+import { SESSION_TTL_MS } from "@mavio/transport";
 import {
   StreamableHttpSessionRegistry,
-  SESSION_TTL_MS,
   BUFFER_LIMIT,
 } from "./streamable-http.session-registry.js";
 
@@ -22,99 +22,100 @@ function mkRes(): Response & { _chunks: string[]; ended: boolean } {
 }
 
 describe("StreamableHttpSessionRegistry", () => {
-  it("create returns a UUID and has() is true", () => {
+  it("create returns a UUID and has() is true", async () => {
     const r = new StreamableHttpSessionRegistry();
-    const sid = r.create();
+    const sid = await r.create();
     expect(sid).toMatch(/^[0-9a-f-]{36}$/);
-    expect(r.has(sid)).toBe(true);
+    expect(await r.has(sid)).toBe(true);
   });
 
-  it("delete removes session", () => {
+  it("delete removes session", async () => {
     const r = new StreamableHttpSessionRegistry();
-    const sid = r.create();
+    const sid = await r.create();
     r.delete(sid);
-    expect(r.has(sid)).toBe(false);
+    expect(await r.has(sid)).toBe(false);
   });
 
-  it("pushNotification buffers when no push stream attached", () => {
+  it("pushNotification buffers when no push stream attached", async () => {
     const r = new StreamableHttpSessionRegistry();
-    const sid = r.create();
-    const ok = r.pushNotification(sid, { jsonrpc: "2.0", method: "n", params: {} } as any);
+    const sid = await r.create();
+    const ok = await r.pushNotification(sid, { jsonrpc: "2.0", method: "n", params: {} } as any);
     expect(ok).toBe(true);
   });
 
-  it("attachPushStream drains buffered notifications", () => {
+  it("attachPushStream drains buffered notifications", async () => {
     const r = new StreamableHttpSessionRegistry();
-    const sid = r.create();
-    r.pushNotification(sid, { jsonrpc: "2.0", method: "a" } as any);
-    r.pushNotification(sid, { jsonrpc: "2.0", method: "b" } as any);
+    const sid = await r.create();
+    await r.pushNotification(sid, { jsonrpc: "2.0", method: "a" } as any);
+    await r.pushNotification(sid, { jsonrpc: "2.0", method: "b" } as any);
     const res = mkRes();
-    r.attachPushStream(sid, res);
+    await r.attachPushStream(sid, res);
     expect(res._chunks.length).toBe(2);
     expect(res._chunks[0]).toContain("event: message");
     expect(res._chunks[0]).toContain('"method":"a"');
   });
 
-  it("pushNotification writes directly when stream attached", () => {
+  it("pushNotification writes directly when stream attached", async () => {
     const r = new StreamableHttpSessionRegistry();
-    const sid = r.create();
+    const sid = await r.create();
     const res = mkRes();
-    r.attachPushStream(sid, res);
-    r.pushNotification(sid, { jsonrpc: "2.0", method: "live" } as any);
+    await r.attachPushStream(sid, res);
+    await r.pushNotification(sid, { jsonrpc: "2.0", method: "live" } as any);
     expect(res._chunks[0]).toContain('"method":"live"');
   });
 
-  it("buffer caps at BUFFER_LIMIT", () => {
+  it("buffer caps at BUFFER_LIMIT", async () => {
     const r = new StreamableHttpSessionRegistry();
-    const sid = r.create();
+    const sid = await r.create();
     for (let i = 0; i < BUFFER_LIMIT + 20; i++) {
-      r.pushNotification(sid, { jsonrpc: "2.0", method: `m${i}` } as any);
+      await r.pushNotification(sid, { jsonrpc: "2.0", method: `m${i}` } as any);
     }
     const res = mkRes();
-    r.attachPushStream(sid, res);
+    await r.attachPushStream(sid, res);
     expect(res._chunks.length).toBe(BUFFER_LIMIT);
   });
 
-  it("reapExpired removes sessions older than TTL", () => {
+  it("reapExpired removes sessions older than TTL", async () => {
     const r = new StreamableHttpSessionRegistry();
-    const sid = r.create();
+    const sid = await r.create();
     const future = Date.now() + SESSION_TTL_MS + 1;
-    const reaped = r.reapExpired(future);
+    const reaped = await r.reapExpired(future);
     expect(reaped).toBe(1);
-    expect(r.has(sid)).toBe(false);
+    expect(await r.has(sid)).toBe(false);
   });
 
-  it("touch returns false for absent session", () => {
+  it("touch is fire-and-forget (no return value)", async () => {
     const r = new StreamableHttpSessionRegistry();
-    expect(r.touch("nope")).toBe(false);
+    const result = r.touch("nope");
+    expect(result).toBeUndefined();
   });
 
-  it("pushNotification bumps lastSeenAt, extending TTL for push-only sessions", () => {
+  it("pushNotification bumps lastSeenAt, extending TTL for push-only sessions", async () => {
     const r = new StreamableHttpSessionRegistry();
-    const sid = r.create();
+    const sid = await r.create();
 
     const pushedAt = Date.now();
     vi.spyOn(Date, "now").mockReturnValue(pushedAt);
-    r.pushNotification(sid, { jsonrpc: "2.0", method: "keepalive" } as any);
+    await r.pushNotification(sid, { jsonrpc: "2.0", method: "keepalive" } as any);
     vi.restoreAllMocks();
 
     // Not yet expired relative to the push time.
-    expect(r.reapExpired(pushedAt + SESSION_TTL_MS)).toBe(0);
-    expect(r.has(sid)).toBe(true);
+    expect(await r.reapExpired(pushedAt + SESSION_TTL_MS)).toBe(0);
+    expect(await r.has(sid)).toBe(true);
 
     // Expired once past TTL from the push time.
-    expect(r.reapExpired(pushedAt + SESSION_TTL_MS + 1)).toBe(1);
-    expect(r.has(sid)).toBe(false);
+    expect(await r.reapExpired(pushedAt + SESSION_TTL_MS + 1)).toBe(1);
+    expect(await r.has(sid)).toBe(false);
   });
 
-  it("detachPushStream nulls stream but keeps session", () => {
+  it("detachPushStream nulls stream but keeps session", async () => {
     const r = new StreamableHttpSessionRegistry();
-    const sid = r.create();
+    const sid = await r.create();
     const res = mkRes();
-    r.attachPushStream(sid, res);
+    await r.attachPushStream(sid, res);
     r.detachPushStream(sid);
-    expect(r.has(sid)).toBe(true);
-    const ok = r.pushNotification(sid, { jsonrpc: "2.0", method: "buffered" } as any);
+    expect(await r.has(sid)).toBe(true);
+    const ok = await r.pushNotification(sid, { jsonrpc: "2.0", method: "buffered" } as any);
     expect(ok).toBe(true);
   });
 });

@@ -56,3 +56,9 @@ export {
   type StoredEvent,
   type MemoryEventStoreOptions,
 } from "./event-store.js";
+export {
+  MemoryStreamableSessionStore,
+  SESSION_TTL_MS,
+  type StreamableSessionStore,
+  type StreamableSessionMetadata,
+} from "./streamable-session-store.js";

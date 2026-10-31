@@ -42,20 +42,20 @@ describe("Streamable HTTP e2e (registry + controller only)", () => {
 
   it("DELETE /mcp without Mcp-Session-Id → 404", async () => {
     const res = mkRes();
-    controller.terminate(res, undefined);
+    await controller.terminate(res, undefined);
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.end).toHaveBeenCalled();
   });
 
   it("DELETE /mcp with valid session → 200", async () => {
-    const sid = registry.create();
-    expect(registry.has(sid)).toBe(true);
-    
+    const sid = await registry.create();
+    expect(await registry.has(sid)).toBe(true);
+
     const res = mkRes();
-    controller.terminate(res, sid);
-    
+    await controller.terminate(res, sid);
+
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.end).toHaveBeenCalled();
-    expect(registry.has(sid)).toBe(false);
+    expect(await registry.has(sid)).toBe(false);
   });
 });

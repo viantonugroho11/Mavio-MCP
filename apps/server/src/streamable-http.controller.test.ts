@@ -47,7 +47,7 @@ describe("StreamableHttpController", () => {
     });
 
     it("attaches SSE stream on valid session", async () => {
-      const sid = registry.create();
+      const sid = await registry.create();
       const res = mkRes();
       const req = mkReq();
       await controller.stream(req, res, sid, undefined);
@@ -57,32 +57,32 @@ describe("StreamableHttpController", () => {
     });
 
     it("detaches stream on request close", async () => {
-      const sid = registry.create();
+      const sid = await registry.create();
       const res = mkRes();
       const req = mkReq();
       await controller.stream(req, res, sid, undefined);
-      registry.pushNotification(sid, { jsonrpc: "2.0", method: "x" } as any);
+      await registry.pushNotification(sid, { jsonrpc: "2.0", method: "x" } as any);
       expect(res.write).toHaveBeenCalled();
       req._closeHandlers.forEach((cb) => cb());
       const writesAfter = (res.write as any).mock.calls.length;
-      registry.pushNotification(sid, { jsonrpc: "2.0", method: "y" } as any);
+      await registry.pushNotification(sid, { jsonrpc: "2.0", method: "y" } as any);
       expect((res.write as any).mock.calls.length).toBe(writesAfter);
     });
   });
 
   describe("DELETE /mcp", () => {
-    it("returns 404 when session absent", () => {
+    it("returns 404 when session absent", async () => {
       const res = mkRes();
-      controller.terminate(res, undefined);
+      await controller.terminate(res, undefined);
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
-    it("returns 200 and removes session", () => {
-      const sid = registry.create();
+    it("returns 200 and removes session", async () => {
+      const sid = await registry.create();
       const res = mkRes();
-      controller.terminate(res, sid);
+      await controller.terminate(res, sid);
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(registry.has(sid)).toBe(false);
+      expect(await registry.has(sid)).toBe(false);
     });
   });
 });

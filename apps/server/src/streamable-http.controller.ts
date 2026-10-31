@@ -13,7 +13,7 @@ export class StreamableHttpController {
     @Headers("mcp-session-id") sessionId: string | undefined,
     @Headers("last-event-id") lastEventId: string | undefined,
   ): Promise<void> {
-    if (!sessionId || !this.registry.has(sessionId)) {
+    if (!sessionId || !(await this.registry.has(sessionId))) {
       res.status(404).end();
       return;
     }
@@ -40,11 +40,11 @@ export class StreamableHttpController {
   }
 
   @Delete()
-  terminate(
+  async terminate(
     @Res() res: Response,
     @Headers("mcp-session-id") sessionId: string | undefined,
-  ): void {
-    if (!sessionId || !this.registry.has(sessionId)) {
+  ): Promise<void> {
+    if (!sessionId || !(await this.registry.has(sessionId))) {
       res.status(404).end();
       return;
     }

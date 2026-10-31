@@ -53,7 +53,7 @@ describe("RouterController Streamable HTTP", () => {
     const result = await controller.handle(frame, mkReq(), res, undefined);
     const sid = (res as any)._state.headers["mcp-session-id"];
     expect(sid).toMatch(/^[0-9a-f-]{36}$/);
-    expect(streamableReg.has(sid)).toBe(true);
+    expect(await streamableReg.has(sid)).toBe(true);
     expect(result).toEqual({ jsonrpc: "2.0", id: 1, result: { ok: true } });
   });
 
@@ -65,7 +65,7 @@ describe("RouterController Streamable HTTP", () => {
   });
 
   it("valid Mcp-Session-Id + Accept:application/json returns JSON body", async () => {
-    const sid = streamableReg.create();
+    const sid = await streamableReg.create();
     const res = mkRes();
     const req = mkReq({ "mcp-session-id": sid, accept: "application/json" });
     const frame = { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} } as any;
@@ -74,7 +74,7 @@ describe("RouterController Streamable HTTP", () => {
   });
 
   it("valid Mcp-Session-Id + Accept:text/event-stream streams SSE and ends", async () => {
-    const sid = streamableReg.create();
+    const sid = await streamableReg.create();
     const res = mkRes();
     const req = mkReq({ "mcp-session-id": sid, accept: "text/event-stream" });
     const frame = { jsonrpc: "2.0", id: 3, method: "tools/list", params: {} } as any;

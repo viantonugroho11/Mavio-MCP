@@ -16,6 +16,7 @@ export const CAPABILITY_CACHE = Symbol("CAPABILITY_CACHE");
 export const INVALIDATION_BUS = Symbol("INVALIDATION_BUS");
 export const NOTIFICATION_BUS = Symbol("NOTIFICATION_BUS");
 export const REDIS_NOTIFY_SUB = Symbol("REDIS_NOTIFY_SUB");
+export const REDIS_PUSH_SUB = Symbol("REDIS_PUSH_SUB");
 export const NODE_ID = Symbol("NODE_ID");
 export const REGION = Symbol("REGION");
 export function currentRegion(): string {
@@ -57,6 +58,13 @@ export function currentRegion(): string {
       useFactory: (config: MavioConfig): Redis => createRedis(config.cache.url),
     },
     {
+      // Dedicated connection for psubscribe("mavio:push:*") — cross-replica
+      // push notification delivery (ADR-027). Blocked by subscribe, must not share.
+      provide: REDIS_PUSH_SUB,
+      inject: [MAVIO_CONFIG],
+      useFactory: (config: MavioConfig): Redis => createRedis(config.cache.url),
+    },
+    {
       provide: NOTIFICATION_BUS,
       inject: [REDIS, REDIS_NOTIFY_SUB, NODE_ID],
       useFactory: (pub: Redis, sub: Redis, nodeId: string): NotificationBus =>
@@ -71,6 +79,7 @@ export function currentRegion(): string {
     NOTIFICATION_BUS,
     NODE_ID,
     REGION,
+    REDIS_PUSH_SUB,
   ],
 })
 export class CacheModule implements OnModuleDestroy {
@@ -78,6 +87,7 @@ export class CacheModule implements OnModuleDestroy {
     @Inject(REDIS) private readonly redis: Redis,
     @Inject(REDIS_SUB) private readonly sub: Redis,
     @Inject(REDIS_NOTIFY_SUB) private readonly notifySub: Redis,
+    @Inject(REDIS_PUSH_SUB) private readonly pushSub: Redis,
     @Inject(INVALIDATION_BUS) private readonly bus: InvalidationBus,
     @Inject(NODE_ID) private readonly nodeId: string,
   ) {
@@ -89,5 +99,6 @@ export class CacheModule implements OnModuleDestroy {
     await this.redis.quit();
     await this.sub.quit();
     await this.notifySub.quit();
+    await this.pushSub.quit();
   }
 }
