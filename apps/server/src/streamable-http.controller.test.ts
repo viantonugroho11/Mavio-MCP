@@ -35,14 +35,14 @@ describe("StreamableHttpController", () => {
   describe("GET /mcp", () => {
     it("returns 404 when Mcp-Session-Id absent", async () => {
       const res = mkRes();
-      await controller.stream(mkReq(), res, undefined);
+      await controller.stream(mkReq(), res, undefined, undefined);
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.end).toHaveBeenCalled();
     });
 
     it("returns 404 when session unknown", async () => {
       const res = mkRes();
-      await controller.stream(mkReq(), res, "not-a-session");
+      await controller.stream(mkReq(), res, "not-a-session", undefined);
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
@@ -50,7 +50,7 @@ describe("StreamableHttpController", () => {
       const sid = registry.create();
       const res = mkRes();
       const req = mkReq();
-      await controller.stream(req, res, sid);
+      await controller.stream(req, res, sid, undefined);
       expect(res.setHeader).toHaveBeenCalledWith("content-type", "text/event-stream");
       expect(res.setHeader).toHaveBeenCalledWith("cache-control", "no-cache, no-transform");
       expect(res.setHeader).toHaveBeenCalledWith("connection", "keep-alive");
@@ -60,7 +60,7 @@ describe("StreamableHttpController", () => {
       const sid = registry.create();
       const res = mkRes();
       const req = mkReq();
-      await controller.stream(req, res, sid);
+      await controller.stream(req, res, sid, undefined);
       registry.pushNotification(sid, { jsonrpc: "2.0", method: "x" } as any);
       expect(res.write).toHaveBeenCalled();
       req._closeHandlers.forEach((cb) => cb());

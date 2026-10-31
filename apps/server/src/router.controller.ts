@@ -43,7 +43,10 @@ export class RouterController {
         res.setHeader("cache-control", "no-cache, no-transform");
         res.setHeader("connection", "keep-alive");
         res.flushHeaders?.();
-        res.write(`event: message\ndata: ${JSON.stringify(response)}\n\n`);
+        // Per ADR-024: assign stable event ID so client can replay with Last-Event-ID.
+        // streamId is the request's JSON-RPC id (or "anon" for notifications).
+        const rpcId = String((frame as { id?: unknown }).id ?? "anon");
+        await this.streamable.writeResponseEvent(streamableSid, rpcId, JSON.stringify(response), res);
         res.end();
         return;
       }

@@ -19,6 +19,8 @@ export class MavioMetrics {
   readonly vaultDecryptFail: Counter<string>;
   readonly eventIngressTotal: Counter<string>;
   readonly eventIngressDuration: Histogram<string>;
+  readonly streamReplayTotal: Counter<string>;
+  readonly streamReplayGapTotal: Counter<string>;
 
   constructor(prefix = "mavio_") {
     this.registry = new Registry();
@@ -100,6 +102,20 @@ export class MavioMetrics {
       help: "Event Bridge ingress dispatch latency",
       labelNames: ["source", "route", "outcome"] as const,
       buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+      registers: [this.registry],
+    });
+
+    this.streamReplayTotal = new Counter({
+      name: `${prefix}stream_replay_total`,
+      help: "SSE stream replays triggered by Last-Event-ID (ADR-024)",
+      labelNames: ["session"] as const,
+      registers: [this.registry],
+    });
+
+    this.streamReplayGapTotal = new Counter({
+      name: `${prefix}stream_replay_gap_total`,
+      help: "SSE stream replays that encountered a trimmed-event gap (ADR-024)",
+      labelNames: ["session"] as const,
       registers: [this.registry],
     });
   }

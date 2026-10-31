@@ -1,0 +1,38 @@
+version: 1
+
+mavio:
+  publicUrl: http://localhost:4000
+  dataDir: ./.mavio
+
+database:
+  url: ${MAVIO_DB_URL}
+
+cache:
+  url: ${MAVIO_REDIS_URL}
+
+auth:
+  providers:
+    - type: apiKey
+      id: default
+
+workspaces:
+  - id: default
+    name: Default Workspace
+    projects:
+      - id: sandbox
+        name: Sandbox
+
+servers:
+  - id: example-openapi
+    workspace: default
+    project: sandbox
+    source:
+      type: openapi
+      url: https://petstore3.swagger.io/api/v3/openapi.json
+    transport:
+      type: http
+      baseUrl: https://petstore3.swagger.io/api/v3
+    tags: [example]
+
+router:
+  endpoint: /mcp

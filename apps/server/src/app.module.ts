@@ -1,4 +1,6 @@
-import { Module } from "@nestjs/common";
+import { Inject, Module, OnModuleInit } from "@nestjs/common";
+import type { MavioMetrics } from "@mavio/observability";
+import { METRICS } from "./observability.module.js";
 import { AppConfigModule } from "./config.module.js";
 import { CacheModule } from "./cache.module.js";
 import { RegistryModule } from "./registry.module.js";
@@ -43,6 +45,16 @@ import { StreamableHttpSessionRegistry } from "./streamable-http.session-registr
 import { InspectorModule } from "./inspector.module.js";
 import { TraceModule } from "./trace.module.js";
 import { TraceController } from "./trace.controller.js";
+
+class AppBootstrapService implements OnModuleInit {
+  constructor(
+    private readonly streamableRegistry: StreamableHttpSessionRegistry,
+    @Inject(METRICS) private readonly metrics: MavioMetrics,
+  ) {}
+  onModuleInit(): void {
+    this.streamableRegistry.setMetrics(this.metrics);
+  }
+}
 
 @Module({
   imports: [
@@ -98,6 +110,7 @@ import { TraceController } from "./trace.controller.js";
       provide: EVENT_CONSUMER_REGISTRY,
       useFactory: (): EventConsumerRegistry => new EventConsumerRegistry(),
     },
+    AppBootstrapService,
   ],
 })
 export class AppModule {}

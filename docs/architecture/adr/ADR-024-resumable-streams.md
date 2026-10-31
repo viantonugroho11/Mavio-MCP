@@ -1,6 +1,6 @@
 # ADR-024: Resumable Streamable HTTP streams (`Last-Event-ID` replay)
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-04
 **Deciders:** Platform Architecture, SRE
 **Depends on:** ADR-023, ADR-022 · **Feeds:** ADR-020, ADR-025

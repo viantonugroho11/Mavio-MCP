@@ -35,7 +35,7 @@ describe("Streamable HTTP e2e (registry + controller only)", () => {
 
   it("GET /mcp without Mcp-Session-Id → 404", async () => {
     const res = mkRes();
-    await controller.stream(mkReq(), res, undefined);
+    await controller.stream(mkReq(), res, undefined, undefined);
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.end).toHaveBeenCalled();
   });

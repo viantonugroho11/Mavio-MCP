@@ -48,3 +48,11 @@ export { HttpTransport } from "./http.js";
 export { SseTransport } from "./sse.js";
 export { WsTransport } from "./ws.js";
 export { StreamableHttpTransport } from "./streamable-http.js";
+export {
+  MemoryEventStore,
+  GAP_EVENT,
+  parseEventId,
+  type EventStore,
+  type StoredEvent,
+  type MemoryEventStoreOptions,
+} from "./event-store.js";

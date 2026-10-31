@@ -11,6 +11,7 @@ export class StreamableHttpController {
     @Req() req: Request,
     @Res() res: Response,
     @Headers("mcp-session-id") sessionId: string | undefined,
+    @Headers("last-event-id") lastEventId: string | undefined,
   ): Promise<void> {
     if (!sessionId || !this.registry.has(sessionId)) {
       res.status(404).end();
@@ -22,7 +23,7 @@ export class StreamableHttpController {
     res.flushHeaders?.();
 
     this.registry.touch(sessionId);
-    this.registry.attachPushStream(sessionId, res);
+    await this.registry.attachPushStream(sessionId, res, lastEventId);
 
     const ping = setInterval(() => {
       try {
