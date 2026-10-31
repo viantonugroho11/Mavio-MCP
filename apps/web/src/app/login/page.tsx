@@ -18,41 +18,61 @@ export default async function LoginPage({
   const returnTo = return_to ?? "/";
 
   return (
-    <main className="max-w-md mx-auto px-6 py-16">
-      <h1 className="font-display text-3xl italic mb-2">Sign in</h1>
-      <p className="text-muted text-sm mb-8">Choose a provider to continue.</p>
-
-      {error && (
-        <div className="mb-6 p-3 border border-rule text-sm text-muted">
-          Failed to load providers: {error}
+    <div className="min-h-[calc(100vh-10rem)] flex items-center justify-center">
+      <div className="w-full max-w-sm">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <span className="font-display text-3xl italic tracking-tight text-ink">
+            Mavio<span className="text-bronze">·</span>MCP
+          </span>
+          <p className="mt-2 text-sm text-muted">Sign in to continue to the console.</p>
         </div>
-      )}
 
-      {providers.length === 0 && !error && (
-        <p className="text-sm text-muted">
-          No OIDC providers configured. An admin can add one at{" "}
-          <code className="text-ink">PUT /api/auth/providers/:id</code>.
-        </p>
-      )}
+        {/* Card */}
+        <div className="rounded-xl border border-rule bg-panel shadow-card p-6">
+          <h1 className="text-base font-semibold text-ink mb-1">Choose a provider</h1>
+          <p className="text-sm text-muted mb-5">Select an identity provider to authenticate.</p>
 
-      <ul className="flex flex-col gap-3">
-        {providers.map((p) => {
-          const href = `${API_URL}${p.loginUrl}?return_to=${encodeURIComponent(returnTo)}`;
-          return (
-            <li key={p.id}>
-              <a
-                href={href}
-                className="block px-4 py-3 border border-rule hover:border-bronze transition-colors"
-              >
-                <span className="text-sm font-medium">{p.displayName}</span>
-                <span className="ml-2 font-mono text-[10px] uppercase tracking-widest text-muted">
-                  {p.id}
-                </span>
-              </a>
-            </li>
-          );
-        })}
-      </ul>
-    </main>
+          {error && (
+            <div className="mb-4 rounded-lg border border-danger/20 bg-danger-muted px-4 py-3 text-sm text-danger">
+              Failed to load providers: {error}
+            </div>
+          )}
+
+          {providers.length === 0 && !error && (
+            <div className="rounded-lg bg-ground border border-rule px-4 py-4 text-sm text-muted">
+              No OIDC providers configured. An admin can add one at{" "}
+              <code className="text-ink font-mono text-xs">PUT /api/auth/providers/:id</code>.
+            </div>
+          )}
+
+          <ul className="flex flex-col gap-2">
+            {providers.map((p) => {
+              const href = `${API_URL}${p.loginUrl}?return_to=${encodeURIComponent(returnTo)}`;
+              return (
+                <li key={p.id}>
+                  <a
+                    href={href}
+                    className="flex items-center justify-between px-4 py-3 rounded-lg border border-rule bg-ground hover:border-accent/40 hover:bg-accent-muted transition-all group"
+                  >
+                    <span className="text-sm font-medium text-ink group-hover:text-accent transition-colors">
+                      {p.displayName}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-muted">
+                        {p.id}
+                      </span>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-muted group-hover:text-accent transition-colors">
+                        <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
+    </div>
   );
 }
