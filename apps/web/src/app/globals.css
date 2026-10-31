@@ -3,4 +3,30 @@
 @tailwind utilities;
 
 :root { color-scheme: light; }
-html, body { background: theme("colors.ground"); color: theme("colors.ink"); }
+
+html, body {
+  background: theme("colors.ground");
+  color: theme("colors.ink");
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: theme("boxShadow.focus");
+    border-radius: theme("borderRadius.DEFAULT");
+  }
+
+  select, textarea, input {
+    appearance: none;
+    border-radius: theme("borderRadius.DEFAULT");
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: theme("colors.rule") transparent;
+  }
+}

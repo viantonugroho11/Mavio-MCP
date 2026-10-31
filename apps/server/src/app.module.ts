@@ -45,6 +45,8 @@ import { StreamableHttpSessionRegistry } from "./streamable-http.session-registr
 import { InspectorModule } from "./inspector.module.js";
 import { TraceModule } from "./trace.module.js";
 import { TraceController } from "./trace.controller.js";
+import { LocalAuthModule } from "./local-auth.module.js";
+import { LocalAuthController } from "./local-auth.controller.js";
 
 class AppBootstrapService implements OnModuleInit {
   constructor(
@@ -72,6 +74,7 @@ class AppBootstrapService implements OnModuleInit {
     UpstreamAuthModule,
     InspectorModule,
     TraceModule,
+    LocalAuthModule,
   ],
   controllers: [
     RouterController,
@@ -93,6 +96,7 @@ class AppBootstrapService implements OnModuleInit {
     VaultAdminController,
     EventsController,
     TraceController,
+    LocalAuthController,
   ],
   providers: [
     RouterService,

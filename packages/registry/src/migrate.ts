@@ -301,6 +301,25 @@ async function main(): Promise<void> {
       WHERE fail_stage IS NOT NULL;
   `.execute(db);
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS local_users (
+      id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      username      text NOT NULL UNIQUE,
+      email         text,
+      display_name  text NOT NULL,
+      password_hash text NOT NULL,
+      workspace_id  text NOT NULL DEFAULT 'default',
+      enabled       boolean NOT NULL DEFAULT true,
+      created_at    timestamptz NOT NULL DEFAULT now(),
+      updated_at    timestamptz NOT NULL DEFAULT now()
+    );
+  `.execute(db);
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS local_users_username_idx
+      ON local_users (username);
+  `.execute(db);
+
   await db.destroy();
   console.log("migrations applied");
 }
