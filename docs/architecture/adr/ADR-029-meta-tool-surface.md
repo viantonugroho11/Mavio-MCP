@@ -148,6 +148,8 @@ need the per-server override from day one.
 
 ## Action Items
 1. Result size cap in `callTool` (independent, ships first, both surfaces).
+   **Done** — `apps/server/src/result-cap.ts`, config `router.maxResultChars`,
+   metric `mavio_result_truncated_total{server}`, audit `resultChars`/`truncated`.
 2. `effect` resolution + annotations on flat `tools/list` + admin override.
 3. Search index over the capability cache + ranking tests from real queries.
 4. `mavio_list_servers`, `mavio_search_tools`, `mavio_get_tool_schema`.

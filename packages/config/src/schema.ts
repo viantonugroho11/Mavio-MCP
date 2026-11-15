@@ -113,6 +113,7 @@ export const MavioConfigSchema = z.object({
   router: z
     .object({
       endpoint: z.string().default("/mcp"),
+      maxResultChars: z.number().int().positive().default(60_000),
       rateLimit: z
         .object({ rpm: z.number(), burst: z.number() })
         .optional(),

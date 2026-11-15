@@ -32,6 +32,7 @@ import {
 } from "./cache.module.js";
 import { POLICY_ENGINE } from "./rbac.module.js";
 import { MAVIO_CONFIG } from "./config.module.js";
+import { DEFAULT_MAX_RESULT_CHARS, capResultText } from "./result-cap.js";
 import { METRICS } from "./observability.module.js";
 import { SqlDispatcher } from "./sql-dispatcher.js";
 import { GraphqlDispatcher } from "./graphql-dispatcher.js";
@@ -53,6 +54,7 @@ interface DispatchResult {
 export class RouterService implements OnModuleInit {
   private readonly breaker: CircuitBreaker;
   private readonly limiter: RateLimiter;
+  private readonly maxResultChars: number;
 
   constructor(
     @Inject(REGISTRY) private readonly registry: Registry,
@@ -73,6 +75,7 @@ export class RouterService implements OnModuleInit {
   ) {
     this.breaker = new CircuitBreaker(config.router.circuitBreaker ?? {});
     this.limiter = new RateLimiter(redis);
+    this.maxResultChars = config.router.maxResultChars ?? DEFAULT_MAX_RESULT_CHARS;
   }
 
   onModuleInit(): void {
@@ -269,6 +272,8 @@ export class RouterService implements OnModuleInit {
     let outcome: "ok" | "error" | "circuit_open" = "ok";
     let capturedDispatch: DispatchResult | null = null;
     let capturedError: Error | null = null;
+    let resultChars = 0;
+    let truncated = false;
     try {
       const dispatched = await withSpan(
         `mavio.router.call ${serverId}.${toolName}`,
@@ -291,19 +296,19 @@ export class RouterService implements OnModuleInit {
       if (dispatched.isError) {
         this.metrics.upstreamErrors.inc({ server: serverId, kind: descriptor.transport.type });
       }
+      const fullText =
+        typeof dispatched.result === "string"
+          ? dispatched.result
+          : JSON.stringify(dispatched.result) ?? "";
+      const capped = capResultText(fullText, this.maxResultChars);
+      resultChars = capped.totalChars;
+      truncated = capped.truncated;
+      if (truncated) this.metrics.resultTruncatedTotal.inc({ server: serverId });
       const clientResponse: MCPFrame = {
         jsonrpc: "2.0",
         id: frame.id ?? null,
         result: {
-          content: [
-            {
-              type: "text",
-              text:
-                typeof dispatched.result === "string"
-                  ? dispatched.result
-                  : JSON.stringify(dispatched.result),
-            },
-          ],
+          content: [{ type: "text", text: capped.text }],
           isError: dispatched.isError,
         },
       };
@@ -338,7 +343,7 @@ export class RouterService implements OnModuleInit {
         action: "tool.invoke",
         resource: { server: serverId, tool: toolName },
         outcome: outcome === "ok" ? "ok" : "error",
-        metadata: { outcome, durationMs: latencyMs, sessionId: sessionId ?? null },
+        metadata: { outcome, durationMs: latencyMs, sessionId: sessionId ?? null, resultChars, truncated },
       });
       // Trace capture: always-on for errors, opt-in (trace.enabled) for success.
       const traceEnabled =

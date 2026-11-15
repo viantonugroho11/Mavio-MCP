@@ -21,6 +21,7 @@ export class MavioMetrics {
   readonly eventIngressDuration: Histogram<string>;
   readonly streamReplayTotal: Counter<string>;
   readonly streamReplayGapTotal: Counter<string>;
+  readonly resultTruncatedTotal: Counter<string>;
 
   constructor(prefix = "mavio_") {
     this.registry = new Registry();
@@ -116,6 +117,13 @@ export class MavioMetrics {
       name: `${prefix}stream_replay_gap_total`,
       help: "SSE stream replays that encountered a trimmed-event gap (ADR-024)",
       labelNames: ["session"] as const,
+      registers: [this.registry],
+    });
+
+    this.resultTruncatedTotal = new Counter({
+      name: `${prefix}result_truncated_total`,
+      help: "Tool results cut at router.maxResultChars (ADR-029)",
+      labelNames: ["server"] as const,
       registers: [this.registry],
     });
   }
