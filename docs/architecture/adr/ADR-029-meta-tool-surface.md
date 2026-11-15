@@ -88,9 +88,11 @@ In-process, no index, no new dependency:
   `notifications/tools/list_changed` and capability-cache invalidation.
 
 ### Side-effect labels
-- `effect: "read" | "write" | "destructive"` per tool, sourced in order from:
-  the upstream's MCP annotations (`readOnlyHint`/`destructiveHint`), an admin
-  override on the server descriptor, then default **`destructive`**.
+- `effect: "read" | "write" | "destructive"` per tool. Precedence, first match
+  wins: admin override (`metadata.toolEffects[toolName]` on the server
+  descriptor) > the upstream's MCP annotations (`readOnlyHint`/`destructiveHint`)
+  > importer metadata (`x-mavio-http` GET/HEAD/OPTIONS, any `x-mavio-sql`,
+  `x-mavio-graphql` query → `read`) > default **`destructive`**.
 - Exposed in both surfaces (flat `tools/list` gets `annotations` too).
 - Available to the policy engine (OPA/Cedar input field `tool.effect`) and to
   the Inspector for confirmation prompts.
@@ -151,6 +153,10 @@ need the per-server override from day one.
    **Done** — `apps/server/src/result-cap.ts`, config `router.maxResultChars`,
    metric `mavio_result_truncated_total{server}`, audit `resultChars`/`truncated`.
 2. `effect` resolution + annotations on flat `tools/list` + admin override.
+   **Done** — `apps/server/src/tool-effect.ts`; `ToolDefinition.annotations` in
+   `@mavio/core`; `import-mcp` keeps upstream annotations (takes effect on
+   re-import); override via `POST /servers` with `metadata.toolEffects`;
+   audit records `effect` on every `tool.invoke`.
 3. Search index over the capability cache + ranking tests from real queries.
 4. `mavio_list_servers`, `mavio_search_tools`, `mavio_get_tool_schema`.
 5. `mavio_execute_tools` batch mode on top of `callTool`.

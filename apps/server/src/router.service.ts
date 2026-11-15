@@ -33,6 +33,7 @@ import {
 import { POLICY_ENGINE } from "./rbac.module.js";
 import { MAVIO_CONFIG } from "./config.module.js";
 import { DEFAULT_MAX_RESULT_CHARS, capResultText } from "./result-cap.js";
+import { annotationsForEffect, resolveToolEffect } from "./tool-effect.js";
 import { METRICS } from "./observability.module.js";
 import { SqlDispatcher } from "./sql-dispatcher.js";
 import { GraphqlDispatcher } from "./graphql-dispatcher.js";
@@ -177,8 +178,15 @@ export class RouterService implements OnModuleInit {
     const out: Array<ToolDefinition & { server: string }> = [];
     for (const s of servers) {
       const caps = await this.loadCapabilities(s.id);
+      const metadata = s.metadata as Record<string, unknown> | undefined;
       for (const t of caps?.tools ?? []) {
-        out.push({ ...t, name: `${s.id}.${t.name}`, server: s.id });
+        const effect = resolveToolEffect(t, metadata);
+        out.push({
+          ...t,
+          name: `${s.id}.${t.name}`,
+          server: s.id,
+          annotations: annotationsForEffect(effect, t.annotations),
+        });
       }
     }
     return out;
@@ -222,6 +230,7 @@ export class RouterService implements OnModuleInit {
     const tool = caps?.tools?.find((t) => t.name === toolName);
     if (!tool) return errorFrame(frame.id, -32001, `tool ${fqName} not found`);
     const schema = tool.inputSchema as Record<string, unknown>;
+    const effect = resolveToolEffect(tool, descriptor.metadata as Record<string, unknown> | undefined);
 
     const perServerRpm = Number(
       (descriptor.metadata as { rateLimitRpm?: number } | undefined)?.rateLimitRpm ?? 0,
@@ -343,7 +352,7 @@ export class RouterService implements OnModuleInit {
         action: "tool.invoke",
         resource: { server: serverId, tool: toolName },
         outcome: outcome === "ok" ? "ok" : "error",
-        metadata: { outcome, durationMs: latencyMs, sessionId: sessionId ?? null, resultChars, truncated },
+        metadata: { outcome, durationMs: latencyMs, sessionId: sessionId ?? null, effect, resultChars, truncated },
       });
       // Trace capture: always-on for errors, opt-in (trace.enabled) for success.
       const traceEnabled =

@@ -1,4 +1,4 @@
-import type { MCPFrame, ServerCapabilities, ToolDefinition, TransportDescriptor } from "@mavio/core";
+import type { MCPFrame, ServerCapabilities, ToolAnnotations, ToolDefinition, TransportDescriptor } from "@mavio/core";
 import { MavioError } from "@mavio/core";
 import { TransportManager } from "@mavio/transport";
 
@@ -79,7 +79,7 @@ function normalizeTools(input: unknown[]): ToolDefinition[] {
   const out: ToolDefinition[] = [];
   for (const raw of input) {
     if (!raw || typeof raw !== "object") continue;
-    const t = raw as { name?: unknown; description?: unknown; inputSchema?: unknown };
+    const t = raw as { name?: unknown; description?: unknown; inputSchema?: unknown; annotations?: unknown };
     if (typeof t.name !== "string" || !t.name) continue;
     out.push({
       name: t.name,
@@ -88,9 +88,21 @@ function normalizeTools(input: unknown[]): ToolDefinition[] {
         t.inputSchema && typeof t.inputSchema === "object"
           ? (t.inputSchema as Record<string, unknown>)
           : { type: "object", properties: {} },
+      annotations: normalizeAnnotations(t.annotations),
     });
   }
   return out;
+}
+
+function normalizeAnnotations(raw: unknown): ToolAnnotations | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const a = raw as Record<string, unknown>;
+  const out: ToolAnnotations = {};
+  if (typeof a.title === "string") out.title = a.title;
+  for (const k of ["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"] as const) {
+    if (typeof a[k] === "boolean") out[k] = a[k] as boolean;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 function deriveName(transport: TransportDescriptor): string {

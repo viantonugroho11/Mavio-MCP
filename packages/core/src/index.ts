@@ -65,10 +65,20 @@ export type TransportDescriptor =
   | GraphqlTransportDescriptor
   | StreamableHttpTransportDescriptor;
 
+/** MCP tool annotations (spec 2025-03-26). All fields are hints, not guarantees. */
+export interface ToolAnnotations {
+  title?: string;
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+}
+
 export interface ToolDefinition {
   name: string;
   description?: string;
   inputSchema: Record<string, unknown>;
+  annotations?: ToolAnnotations;
 }
 
 export interface ServerCapabilities {
