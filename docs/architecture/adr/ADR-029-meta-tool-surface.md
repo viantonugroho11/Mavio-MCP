@@ -162,6 +162,11 @@ need the per-server override from day one.
    `RouterService.searchTools()`; index rebuilt lazily after invalidation
    events or 5 minutes. RBAC filtering of results lands with item 4.
 4. `mavio_list_servers`, `mavio_search_tools`, `mavio_get_tool_schema`.
+   **Done** — `apps/server/src/meta-tools/discovery.ts`. Callable through
+   `tools/call` in both surfaces (not yet listed in `tools/list`; that is
+   item 7). Results are RBAC- and approval-filtered; a forbidden tool returns
+   the same `TOOL_NOT_FOUND` as a missing one. `connected` comes from
+   `UpstreamTokenService.connectionStatus()`, which never mints or refreshes.
 5. `mavio_execute_tools` batch mode on top of `callTool`.
 6. Compose mode: `{{step:…}}` resolver, `BAD_REF`, `return` template, per-step
    session accounting.

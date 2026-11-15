@@ -35,6 +35,7 @@ import { MAVIO_CONFIG } from "./config.module.js";
 import { DEFAULT_MAX_RESULT_CHARS, capResultText } from "./result-cap.js";
 import { annotationsForEffect, resolveToolEffect } from "./tool-effect.js";
 import { ToolSearchIndex, type SearchHit, type SearchOptions, type SearchableTool } from "./meta-tools/search.js";
+import { MetaToolArgumentError, isDiscoveryTool, runDiscoveryTool, type DiscoveryDeps } from "./meta-tools/discovery.js";
 import { METRICS } from "./observability.module.js";
 import { SqlDispatcher } from "./sql-dispatcher.js";
 import { GraphqlDispatcher } from "./graphql-dispatcher.js";
@@ -53,6 +54,7 @@ interface DispatchResult {
 }
 
 const SEARCH_INDEX_TTL_MS = 5 * 60 * 1000;
+const META_TOOL_PREFIX = "mavio_";
 
 @Injectable()
 export class RouterService implements OnModuleInit {
@@ -158,6 +160,9 @@ export class RouterService implements OnModuleInit {
     if (frame.method === "tools/call") {
       const params = (frame.params ?? {}) as { name?: string; arguments?: Record<string, unknown> };
       if (!params.name) return errorFrame(frame.id, -32602, "missing tool name");
+      if (params.name.startsWith(META_TOOL_PREFIX) && !params.name.includes(".")) {
+        return this.callMetaTool(frame, params.name, params.arguments ?? {}, principal);
+      }
       return this.callTool(frame, params.name, params.arguments ?? {}, principal, sessionId);
     }
 
@@ -196,6 +201,55 @@ export class RouterService implements OnModuleInit {
       }
     }
     return out;
+  }
+
+  private async authorizeTool(
+    principal: Principal | undefined,
+    descriptor: ServerDescriptor,
+    toolName: string,
+  ): Promise<{ allowed: boolean; reason?: string }> {
+    if (!principal || principal.scopes.includes("*")) return { allowed: true };
+    return this.policy.can(principal, Actions.ToolInvoke, {
+      workspace: descriptor.workspaceId,
+      project: descriptor.projectId,
+      server: descriptor.id,
+      tool: toolName,
+    });
+  }
+
+  private discoveryDeps(principal: Principal | undefined): DiscoveryDeps {
+    return {
+      listServers: () => this.loadServers(),
+      loadCapabilities: (id) => this.loadCapabilities(id),
+      canInvoke: async (d, tool) => (await this.authorizeTool(principal, d, tool)).allowed,
+      isConnected: (d) => this.upstream.connectionStatus(principal, d),
+      search: (q, opts) => this.searchTools(q, opts),
+    };
+  }
+
+  /** ADR-029 meta-tools. Tool failures are results; only bad meta-tool calls are JSON-RPC errors. */
+  private async callMetaTool(
+    frame: MCPFrame,
+    name: string,
+    args: Record<string, unknown>,
+    principal: Principal | undefined,
+  ): Promise<MCPFrame> {
+    if (!isDiscoveryTool(name)) return errorFrame(frame.id, -32602, `Tool not found: ${name}`);
+    let result: unknown;
+    try {
+      result = await runDiscoveryTool(name, this.discoveryDeps(principal), args);
+    } catch (err) {
+      if (err instanceof MetaToolArgumentError) {
+        return errorFrame(frame.id, -32602, `Invalid arguments for ${name}: ${err.message}`);
+      }
+      throw err;
+    }
+    const capped = capResultText(JSON.stringify(result), this.maxResultChars);
+    return {
+      jsonrpc: "2.0",
+      id: frame.id ?? null,
+      result: { content: [{ type: "text", text: capped.text }], isError: false },
+    };
   }
 
   /** ADR-029: ranked tool search over the capability cache. */
@@ -254,15 +308,8 @@ export class RouterService implements OnModuleInit {
       return errorFrame(frame.id, -32002, `server ${serverId} not approved (status=${descriptor.approvalStatus})`);
     }
 
-    if (principal && !principal.scopes.includes("*")) {
-      const decision = await this.policy.can(principal, Actions.ToolInvoke, {
-        workspace: descriptor.workspaceId,
-        project: descriptor.projectId,
-        server: serverId,
-        tool: toolName,
-      });
-      if (!decision.allowed) return errorFrame(frame.id, -32003, `authz denied: ${decision.reason}`);
-    }
+    const decision = await this.authorizeTool(principal, descriptor, toolName);
+    if (!decision.allowed) return errorFrame(frame.id, -32003, `authz denied: ${decision.reason}`);
 
     const caps = await this.loadCapabilities(serverId);
     const tool = caps?.tools?.find((t) => t.name === toolName);

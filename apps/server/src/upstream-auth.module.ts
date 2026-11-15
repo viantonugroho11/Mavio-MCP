@@ -70,6 +70,26 @@ export class UpstreamTokenService {
     private readonly metrics: MavioMetrics,
   ) {}
 
+  /**
+   * Side-effect-free connection check (no mint, refresh, revoke or metrics).
+   * `connected` is true when a call would not be refused for missing consent:
+   * the server needs no upstream OAuth, a credential is stored, or the provider
+   * can mint one on demand.
+   */
+  async connectionStatus(
+    principal: Principal | undefined,
+    descriptor: ServerDescriptor,
+  ): Promise<{ connected: boolean; providerId: string | null }> {
+    const providerId =
+      (descriptor.metadata as { upstreamOAuthProvider?: string } | undefined)?.upstreamOAuthProvider ?? null;
+    if (!providerId) return { connected: true, providerId: null };
+    if (!principal) return { connected: false, providerId };
+    const provider = this.registry.get(providerId);
+    if (!provider) return { connected: false, providerId };
+    if (await this.repo.get(principal.id, providerId)) return { connected: true, providerId };
+    return { connected: Boolean(provider.mint), providerId };
+  }
+
   async resolveForDispatch(
     principal: Principal | undefined,
     descriptor: ServerDescriptor,
