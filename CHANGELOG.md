@@ -4,6 +4,107 @@ All notable changes to Mavio-MCP land here. Format follows [Keep a Changelog](ht
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-11-16
+
+### Added — Streamable HTTP sessions (ADR-024, ADR-025, ADR-027)
+- **Resumable streams (ADR-024).** Every SSE event carries a stable
+  `id: <streamId>:<seq>`. A client reconnecting `GET /mcp` with
+  `Last-Event-ID` gets the events it missed. `MemoryEventStore` ring buffer
+  (1000 events, 10 min TTL, 256 KiB per event); trimmed history replays with
+  a `mavio/replay_gap` warning, oversized events with `mavio/oversized_event`.
+  New counters `mavio_stream_replay_total`, `mavio_stream_replay_gap_total`.
+- **Session as operational unit (ADR-025).** Each Streamable HTTP session
+  keeps call/error counts, bytes in/out, `clientInfo` from `initialize` and
+  labels. Optional limits `maxCalls`, `maxCallsPerMinute`, `maxDuration` and a
+  loop guard (same tool + same arguments N times in a window), all off by
+  default, return JSON-RPC `-32029` (`mavio/session_limit`). `sessionId` is
+  recorded on audit events and traces. Admin API: `GET /admin/sessions`,
+  `GET /admin/sessions/:id`, `DELETE /admin/sessions/:id` (force-terminates
+  the SSE stream).
+- **Sessions across replicas (ADR-027, partial).** Session metadata lives in
+  Redis (`mavio:sess:streamable:{id}`, 25 h TTL), so any replica can serve
+  any session without sticky load balancing. Push notifications for a
+  session whose stream is on another replica are delivered over Redis
+  pub/sub (`mavio:push:{sessionId}`). SSE streams stay node-local.
+
+### Added — Tool discovery and safety (ADR-029, items 1–4 of 8)
+- **Result size cap.** Tool results are cut at `router.maxResultChars`
+  (default 60,000) with a notice telling the agent to narrow the request.
+  The cut is deliberately mid-structure so a partial JSON result never
+  parses as complete. Counter `mavio_result_truncated_total{server}`; audit
+  records `resultChars` and `truncated`.
+- **Side-effect labels.** Every tool resolves to `read`, `write` or
+  `destructive` and `tools/list` publishes matching MCP annotations
+  (`readOnlyHint`, `destructiveHint`). Precedence: server
+  `metadata.toolEffects` override, upstream MCP annotations, importer
+  metadata (HTTP GET/HEAD/OPTIONS, SQL, GraphQL query are `read`), then
+  `destructive`. Audit records `effect` on every `tool.invoke`. `import-mcp`
+  now keeps upstream annotations.
+- **Tool search.** Ranked, typo-tolerant search over the capability cache:
+  words in any order, stemming, synonyms (ticket→issue, open→create),
+  `pull request`→`pr`, prefix matches, name weighted over server over
+  description. No new dependency.
+- **Discovery meta-tools** via `tools/call`: `mavio_list_servers`
+  (health, per-principal `connected`), `mavio_search_tools`,
+  `mavio_get_tool_schema`. Results are filtered by RBAC and approval status;
+  a forbidden tool reports the same `TOOL_NOT_FOUND` as a missing one. Not
+  yet listed in `tools/list` (ADR-029 item 7).
+- ADR-029 Meta-tool surface (Proposed).
+
+### Added — Inspector, traces, local auth, UI
+- **Trace Inspector (ADR-020).** `invocation_traces` table; traces captured
+  on every error and, opt-in via `metadata.trace.enabled`, on success.
+  Bodies capped at 64 KiB and redacted. `GET /api/traces`,
+  `GET /api/traces/:id`, `POST /api/traces/:id/replay` (replays through the
+  normal router and RBAC path). Web: per-server trace timeline and 4-hop
+  trace detail.
+- **`@mavio/inspector`.** `GET /api/inspector/:id` describes a server
+  (transport, `serverInfo`, snapshot version, resources, prompts); the server
+  detail page uses it.
+- **OIDC ingress JWT verification.** The stub is replaced with `jose`
+  `jwtVerify` plus issuer discovery, with a per-issuer JWKS cache (1 h).
+- **Local username/password login** for deployments without OIDC.
+  `local_users` table (scrypt hashes), `POST /auth/local/login`, admin user
+  CRUD under `/api/auth/local/users`. The login page shows the local form
+  when at least one local user exists.
+- **Web UI redesign.** Card-based server list with status badges, sticky
+  nav, panel layout for the playground, centered login.
+
+### Changed
+- Tool results longer than 60,000 characters are now truncated. Raise
+  `router.maxResultChars` if a client depends on full large payloads.
+- Tools with no annotation and no read signal are advertised with
+  `destructiveHint: true`. Clients that confirm destructive calls will now
+  prompt for them. Set `metadata.toolEffects` on the server to relabel.
+- `StreamableHttpSessionRegistry.has()` and `create()` are async (internal API).
+
+### Fixed
+- `@mavio/registry` failed to typecheck under `noUncheckedIndexedAccess`,
+  which also broke the server build's `LocalUserRepository` import. Stored
+  password hashes are now parsed with explicit guards.
+
+### Security
+- Dependency advisories patched: `vitest` 3.2.6 (UI server file read/exec),
+  `kysely` 0.28.17 (SQL / JSON-path injection), `next` 15.5.24 (image
+  optimizer RCE), `undici` 6.28.1, plus overrides for `@xmldom/xmldom`,
+  `fast-uri`, `multer`, `postcss`, `vite`. Deferred: `@opentelemetry/sdk-node`
+  (major API change) and `sharp` 0.35 (pinned by `next`).
+
+### Upgrade notes
+- Run migrations (`pnpm --filter @mavio/registry migrate`): new tables
+  `invocation_traces` and `local_users`. Both use `CREATE TABLE IF NOT EXISTS`.
+- One more Redis connection per node (`REDIS_PUSH_SUB`, pattern subscription).
+- Re-import MCP servers to pick up upstream tool annotations.
+
+### Known issues
+- ADR-027: a push notification published while no replica holds the
+  session's stream is lost; replay across replicas needs a shared
+  `EventStore`. Lease-based reaping and `ownerNode` pinning are not done.
+- `mavio_stream_replay_total` and `mavio_stream_replay_gap_total` use a
+  `session` label, which conflicts with the ADR-025 cardinality rule.
+- `POST /auth/local/login` answers faster for unknown usernames than for
+  wrong passwords, which allows username enumeration by timing.
+
 ## [1.3.1] — 2026-10-04
 
 ### Docs — Streamable HTTP follow-up roadmap (all Proposed)
