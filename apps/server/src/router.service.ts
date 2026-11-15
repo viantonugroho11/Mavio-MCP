@@ -34,6 +34,7 @@ import { POLICY_ENGINE } from "./rbac.module.js";
 import { MAVIO_CONFIG } from "./config.module.js";
 import { DEFAULT_MAX_RESULT_CHARS, capResultText } from "./result-cap.js";
 import { annotationsForEffect, resolveToolEffect } from "./tool-effect.js";
+import { ToolSearchIndex, type SearchHit, type SearchOptions, type SearchableTool } from "./meta-tools/search.js";
 import { METRICS } from "./observability.module.js";
 import { SqlDispatcher } from "./sql-dispatcher.js";
 import { GraphqlDispatcher } from "./graphql-dispatcher.js";
@@ -51,11 +52,14 @@ interface DispatchResult {
   backendResponse?: Record<string, unknown>;
 }
 
+const SEARCH_INDEX_TTL_MS = 5 * 60 * 1000;
+
 @Injectable()
 export class RouterService implements OnModuleInit {
   private readonly breaker: CircuitBreaker;
   private readonly limiter: RateLimiter;
   private readonly maxResultChars: number;
+  private searchIndex: { builtAt: number; index: Promise<ToolSearchIndex> } | null = null;
 
   constructor(
     @Inject(REGISTRY) private readonly registry: Registry,
@@ -81,6 +85,7 @@ export class RouterService implements OnModuleInit {
 
   onModuleInit(): void {
     this.bus.onEvent((event) => {
+      if (event.kind === "servers" || event.kind === "server") this.searchIndex = null;
       if (event.kind === "servers") {
         void this.cache.invalidate();
       } else if (event.kind === "server" && event.serverId) {
@@ -93,6 +98,7 @@ export class RouterService implements OnModuleInit {
   async invalidate(serverId?: string): Promise<void> {
     await this.cache.invalidate(serverId);
     if (serverId) this.sql.invalidate(serverId);
+    this.searchIndex = null;
     const evt = serverId ? { kind: "server" as const, serverId } : { kind: "servers" as const };
     await this.bus.publish(evt);
     // Egress fanout (ADR-022 M3): every capability change turns into a
@@ -190,6 +196,38 @@ export class RouterService implements OnModuleInit {
       }
     }
     return out;
+  }
+
+  /** ADR-029: ranked tool search over the capability cache. */
+  async searchTools(query: string, options: SearchOptions = {}): Promise<SearchHit[]> {
+    const now = Date.now();
+    if (!this.searchIndex || now - this.searchIndex.builtAt > SEARCH_INDEX_TTL_MS) {
+      const entry = { builtAt: now, index: this.buildSearchIndex() };
+      this.searchIndex = entry;
+      entry.index.catch(() => {
+        if (this.searchIndex === entry) this.searchIndex = null;
+      });
+    }
+    const index = await this.searchIndex.index;
+    return index.search(query, options);
+  }
+
+  private async buildSearchIndex(): Promise<ToolSearchIndex> {
+    const servers = await this.loadServers();
+    const entries: SearchableTool[] = [];
+    for (const s of servers) {
+      const caps = await this.loadCapabilities(s.id);
+      const metadata = s.metadata as Record<string, unknown> | undefined;
+      for (const t of caps?.tools ?? []) {
+        entries.push({
+          name: `${s.id}.${t.name}`,
+          server: s.id,
+          description: t.description ?? "",
+          effect: resolveToolEffect(t, metadata),
+        });
+      }
+    }
+    return new ToolSearchIndex(entries);
   }
 
   private async callTool(

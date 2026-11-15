@@ -158,6 +158,9 @@ need the per-server override from day one.
    re-import); override via `POST /servers` with `metadata.toolEffects`;
    audit records `effect` on every `tool.invoke`.
 3. Search index over the capability cache + ranking tests from real queries.
+   **Done** — `apps/server/src/meta-tools/search.ts` (`ToolSearchIndex`),
+   `RouterService.searchTools()`; index rebuilt lazily after invalidation
+   events or 5 minutes. RBAC filtering of results lands with item 4.
 4. `mavio_list_servers`, `mavio_search_tools`, `mavio_get_tool_schema`.
 5. `mavio_execute_tools` batch mode on top of `callTool`.
 6. Compose mode: `{{step:…}}` resolver, `BAD_REF`, `return` template, per-step
