@@ -24,16 +24,15 @@ export interface CreateLocalUserInput {
   workspaceId?: string;
 }
 
-async function hashPassword(password: string): Promise<string> {
+export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
   const hash = (await scryptAsync(password, salt, 64)) as Buffer;
   return `scrypt:${salt}:${hash.toString("hex")}`;
 }
 
-async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const parts = stored.split(":");
-  if (parts.length !== 3 || parts[0] !== "scrypt") return false;
-  const [, salt, hashHex] = parts;
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  const [scheme, salt, hashHex, ...rest] = stored.split(":");
+  if (scheme !== "scrypt" || !salt || !hashHex || rest.length > 0) return false;
   const hash = (await scryptAsync(password, salt, 64)) as Buffer;
   const stored_hash = Buffer.from(hashHex, "hex");
   if (hash.length !== stored_hash.length) return false;
