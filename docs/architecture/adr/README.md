@@ -29,11 +29,12 @@ Every non-trivial architectural decision lives here as an immutable, numbered re
 | [ADR-021](ADR-021-import-approval-workflow.md) | Import approval workflow (submit → admin approve/reject) | Accepted |
 | [ADR-022](ADR-022-event-bridge.md) | Event Bridge — webhook/stream ingress + notification bus egress | Proposed |
 | [ADR-023](ADR-023-streamable-http-transport.md) | Streamable HTTP transport (MCP 2025-03 mode B) | Accepted |
-| [ADR-024](ADR-024-resumable-streams.md) | Resumable streams — `Last-Event-ID` replay + EventStore | Proposed |
-| [ADR-025](ADR-025-session-as-operational-unit.md) | Session as operational unit — quota, loop guard, trace | Proposed |
+| [ADR-024](ADR-024-resumable-streams.md) | Resumable streams — `Last-Event-ID` replay + EventStore | Accepted |
+| [ADR-025](ADR-025-session-as-operational-unit.md) | Session as operational unit — quota, loop guard, trace | Accepted |
 | [ADR-026](ADR-026-transport-bridge.md) | Transport bridge — stdio/SSE upstream to Streamable HTTP | Proposed |
-| [ADR-027](ADR-027-session-migration.md) | Session continuity across replicas (shared SessionStore) | Proposed |
+| [ADR-027](ADR-027-session-migration.md) | Session continuity across replicas (shared SessionStore) | Accepted (partial) |
 | [ADR-028](ADR-028-resource-subscription-fanout.md) | Resource subscription fan-out + polling shim | Proposed |
+| [ADR-029](ADR-029-meta-tool-surface.md) | Meta-tool surface — search, schema, execute instead of a flat tool list | Proposed |
 
 ## Template
 New ADRs must follow [`ADR-000-template.md`](ADR-000-template.md).
